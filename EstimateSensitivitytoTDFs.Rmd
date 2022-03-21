@@ -9,9 +9,9 @@ output: word_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-Since I concluded from my previous analysis not to group sources (pending comments from collaborators), I went forward with looking at the sensitivty of my diet estimates to different trophic discrinination factors, hereafter abbreviated as TDF.
+Since I concluded from my previous analysis not to group sources (pending comments from collaborators), I went forward with looking at the sensitivity of my diet estimates to different tropic discrimination factors, hereafter abbreviated as TDF.
 
-Here I will generate several models with different descrimination factors to estimate how these effect my diet estimates
+Here I will generate several models with different discrimination factors to estimate how these effect my diet estimates
 
 I will compare 6 models, all with uninformative priors. The first model will have the specific TDFs that I calculated from the linear equations of Hilderbrand et al 1996 and Felicetti et al 2003.I will also run a model with TDFs calculated using each equation in those papers. I will also run models with TDFs that are both lower and higher than mine by 1 per mil. Finally I also include a model with no TDF corrections, as done in Ro et al. 2021.
 
@@ -63,9 +63,10 @@ bear_speciesc_sds <- matrix(rep(1,10), ncol = 2, nrow = 5)
 ```
 
 First, I use the TDFs that I derived from 3 published bear feeding experiments.
+Below are the two linear regression models that I derived following recommendations by Philips et al. 2014 using the feeding experiment Hilderbrand et al. 1996, Felicetti et al. 2003, and Rode et al. 2016.
+
 
 ```{r}
-# Below are the two linear regression models that I derived following recommendations by Philips et al. 2014 using the ffeding experiment Hilderbrand et al. 1996, Felicetti et al. 2003, and Rode et al. 2016.
 
 Mikkelsen13C <- function(x,y){
   y=-10.6+(0.42*x)
@@ -78,7 +79,7 @@ Mikkelsen15N <- function(x,y){
 # I use these linear equations to predict the isotopic signature of a brown bear eating 100% of a diet source (y) given the mean isotopic signature of that source (x)
 
 d13C.Mikkelsen <- Mikkelsen13C(bears_species_means$mean13C)
-print(C13.Mikkelsen)
+print(d13C.Mikkelsen)
 
 # The actual TDF is the difference between our predicted isotopic signature for a bear eating 100% of that source and the mean isotopic signature for that source
 C13TDF.Mikkelsen <-abs(d13C.Mikkelsen-bears_species_means$mean13C)
@@ -87,9 +88,9 @@ C13TDF.Mikkelsen <-abs(d13C.Mikkelsen-bears_species_means$mean13C)
 print(C13TDF.Mikkelsen)
 
 # Now we repeat the process for Nitrogen
-N15.Mikkelsen <- d15N.Mikkelsen(bears_species_means$mean15N)
-print(N15.Mikkelsen)
-N15TDF.Mikkelsen <-N15.Mikkelsen-bears_species_means$mean15N
+d15N.Mikkelsen <- Mikkelsen15N(bears_species_means$mean15N)
+print(d15N.Mikkelsen)
+N15TDF.Mikkelsen <-d15N.Mikkelsen-bears_species_means$mean15N
 
 # And here we have the TDFs for Nitrogen for ants, bilberries, crowberry, lingonberry, and moose
 print(N15TDF.Mikkelsen)

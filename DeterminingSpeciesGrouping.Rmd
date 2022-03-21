@@ -2,7 +2,9 @@
 title: "DeterminingSpeciesGrouping"
 author: "Ashlee Mikkelsen"
 date: '2022-03-21'
-output: html_document
+output:
+  word_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -95,12 +97,12 @@ plot(bearsimmr_species1)
 ## Now that we have determined that our data does fall within our mixing space, we will run our model
 ```{r}
 
-#bearsimmr_species1_out = simmr_mcmc(
-#  bearsimmr_species1,
-#  mcmc_control = list(
- #   iter= 50000, burn=5000, thin=50, n.chain=4
-  #)
-  #)
+bearsimmr_species1_out = simmr_mcmc(
+  bearsimmr_species1,
+  mcmc_control = list(
+    iter= 50000, burn=5000, thin=50, n.chain=4
+  )
+  )
 
 ```
 

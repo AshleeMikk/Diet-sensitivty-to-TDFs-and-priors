@@ -1,0 +1,477 @@
+---
+title: "Sensitivity to Trophic Discrimination Factors"
+author: "Ashlee Mikkelsen"
+date: '2022-03-21'
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Since I concluded from my previous analysis not to group sources (pending comments from collaborators), I went forward with looking at the sensitivty of my diet estimates to different trophic discrinination factors, hereafter abbreviated as TDF.
+
+Here I will generate several models with different descrimination factors to estimate how these effect my diet estimates
+
+I will compare 6 models, all with uninformative priors. The first model will have the specific TDFs that I calculated from the linear equations of Hilderbrand et al 1996 and Felicetti et al 2003.I will also run a model with TDFs calculated using each equation in those papers. I will also run models with TDFs that are both lower and higher than mine by 1 per mil. Finally I also include a model with no TDF corrections, as done in Ro et al. 2021.
+
+For each group of TDFs, I include the same variance around the TDFs of standard deviations of 1 per mil.
+
+### Model list:
+Model 1: My derived TDF
+Model 2: TDF calculated from Hilderbrand et al 1996
+Model 3: TDF calculated from Felicetti et al. 2003
+Model 4: My TDFs -1 per mil
+Model 5: My TDFs +1 per mil
+Model 6: No TDF as in Ro et al. 2021
+
+```{r, include=FALSE}
+rm(list = ls())
+
+library(simmr)
+library(readxl)
+library(dplyr)
+
+```
+
+
+```{r, include=FALSE}
+##### Load in necessary data
+DataClass_RD <- read_excel("C:/Users/amikk/Desktop/PhD/DataFiles/HairData_SI/DataClass_RD.xlsx")
+BearDietSources <- read_excel("C:/Users/amikk/Desktop/PhD/DataFiles/HairData_SI/BearSources20220317.xlsx")
+
+##### Taking data and turning it into a form usable by  the Simmr package
+bearmix <- cbind(DataClass_RD[,7],DataClass_RD[,6])
+colnames(bearmix) = c('d13C','d15N')
+
+bearsourcres_species <-BearDietSources %>%
+  group_by(Group)%>%
+  summarise(
+    mean13C= mean(d13C),
+    mean15N=mean(d15N),
+    sd13C=sd(d13C),
+    sd15N=sd(d15N),
+    mean13Cconc=mean(PrctC),
+    mean15Nconc=mean(PrctN)
+  )
+bears_species_names <- c("Ants","Bilberry","Crowberry","Lingonberry","Moose")
+bears_species_means <- bearsourcres_species[,2:3]
+bears_species_sds <- bearsourcres_species[,4:5]
+bear_species_conc <- (bearsourcres_species[,6:7])/100
+bear_speciesc_sds <- matrix(rep(1,10), ncol = 2, nrow = 5)
+
+```
+
+First, I use the TDFs that I derived from 3 published bear feeding experiments.
+
+```{r}
+# Below are the two linear regression models that I derived following recommendations by Philips et al. 2014 using the ffeding experiment Hilderbrand et al. 1996, Felicetti et al. 2003, and Rode et al. 2016.
+
+Mikkelsen13C <- function(x,y){
+  y=-10.6+(0.42*x)
+}
+
+Mikkelsen15N <- function(x,y){
+  y=5.02+(0.90*x)
+}
+
+# I use these linear equations to predict the isotopic signature of a brown bear eating 100% of a diet source (y) given the mean isotopic signature of that source (x)
+
+d13C.Mikkelsen <- Mikkelsen13C(bears_species_means$mean13C)
+print(C13.Mikkelsen)
+
+# The actual TDF is the difference between our predicted isotopic signature for a bear eating 100% of that source and the mean isotopic signature for that source
+C13TDF.Mikkelsen <-abs(d13C.Mikkelsen-bears_species_means$mean13C)
+
+# Here are the TDFs for Carbon for ants, bilberries, crowberries, lingonberries, and moose
+print(C13TDF.Mikkelsen)
+
+# Now we repeat the process for Nitrogen
+N15.Mikkelsen <- d15N.Mikkelsen(bears_species_means$mean15N)
+print(N15.Mikkelsen)
+N15TDF.Mikkelsen <-N15.Mikkelsen-bears_species_means$mean15N
+
+# And here we have the TDFs for Nitrogen for ants, bilberries, crowberry, lingonberry, and moose
+print(N15TDF.Mikkelsen)
+
+```
+
+Prior to running our model, I performed a check that my consumers fall within the mixing space
+
+```{r, include=FALSE}
+
+bear_speciesTDF_means.Mikkelsen <- cbind(C13TDF.Mikkelsen,N15TDF.Mikkelsen)
+print(bear_speciesTDF_means.Mikkelsen)
+
+bearsimmr_TDF_Mikkelsen = simmr_load(
+  mixtures=bearmix,
+  source_names=bears_species_names,
+  source_means=bears_species_means,
+  source_sds=bears_species_sds,
+  correction_means=bear_speciesTDF_means.Mikkelsen,
+  correction_sds=bear_speciesc_sds,
+  concentration_means = bear_species_conc
+  )
+
+plot(bearsimmr_TDF_Mikkelsen)
+
+
+```
+Next we run the model and examine output
+
+```{r, include=FALSE}
+
+bearsimmr_TDF_Mikkelsen.out = simmr_mcmc(
+  bearsimmr_TDF_Mikkelsen,
+  mcmc_control = list(
+    iter= 50000, burn=5000, thin=50, n.chain=4
+  )
+  )
+
+```
+
+```{r, echo=FALSE}
+
+
+summary(bearsimmr_TDF_Mikkelsen.out, type = "diagnostics")
+
+summary(bearsimmr_TDF_Mikkelsen.out, type="statistics")
+summary(bearsimmr_TDF_Mikkelsen.out,'quantiles')
+
+plot(bearsimmr_TDF_Mikkelsen.out, type = "density")
+
+```
+
+The output from this model is the same as the output from determining whether to group diet sources, because so far the model specifications are identical
+
+We see from the Gelman diagnostics that the model has converged and we can look at the dieatary proportion estimates and the uncertainty around those estimates. And then see the estimates and uncertainty graphically.
+
+
+##Now I use the same methods and work flow as above to calculate TDFs derived from the linear equation in Hilerbrand et al. 1996 and estimate dietary estimates for the same source and mixture data.
+
+
+```{r}
+Hilderbrand13C<- function(x,y) {
+  y=-10.34+(0.42*x)
+}
+
+Hilderbrand15N<- function(x,y) {
+  y=4.76+(0.91*x)
+}
+
+d13C.Hilderbrand <- Hilderbrand13C(bears_species_means$mean13C)
+print(d13C.Hilderbrand)
+C13TDF.Hilderbrand <-abs(d13C.Hilderbrand-bears_species_means$mean13C)
+#Here are our Carbon TDFs for ants, bilberries, crowberries, lingonberries, and moose
+print(C13TDF.Hilderbrand)
+
+d15N.Hilderbrand <- Hilderbrand15N(bears_species_means$mean15N)
+print(d15N.Hilderbrand)
+N15TDF.Hilderbrand <-abs(bears_species_means$mean15N)+abs(d15N.Hilderbrand)
+
+#Here are the calculated Nitrogen TDFs for ants, bilberry crowberry, lingonberry, and moose
+print(N15TDF.Hilderbrand)
+
+
+```
+
+
+```{r}
+
+bear_speciesTDF_means.Hilderbrand <- cbind(C13TDF.Hilderbrand,N15TDF.Hilderbrand)
+print(bear_speciesTDF_means.Hilderbrand)
+
+
+bearsimmr_TDF_Hilderbrand = simmr_load(
+  mixtures=bearmix,
+  source_names=bears_species_names,
+  source_means=bears_species_means,
+  source_sds=bears_species_sds,
+  correction_means=bear_speciesTDF_means.Hilderbrand,
+  correction_sds=bear_speciesc_sds,
+  concentration_means = bear_species_conc
+  )
+
+plot(bearsimmr_TDF_Hilderbrand)
+
+
+```
+Here we can see that the different TDFs cacluted from Hilderbrand's linear equation have created a different mixing space, but our mixtures (consumers) still fall within the mixing polygon. 
+
+```{r, include=FALSE}
+
+bearsimmr_TDF_Hilderbrand.out = simmr_mcmc(
+  bearsimmr_TDF_Hilderbrand,
+  mcmc_control = list(
+    iter= 50000, burn=5000, thin=50, n.chain=4
+  )
+)
+
+
+```
+
+
+
+
+```{r, echo=FALSE}
+
+
+summary(bearsimmr_TDF_Hilderbrand.out, type = "diagnostics")
+
+summary(bearsimmr_TDF_Hilderbrand.out, type="statistics")
+summary(bearsimmr_TDF_Hilderbrand.out,'quantiles')
+
+plot(bearsimmr_TDF_Hilderbrand.out, type = "density")
+plot(bearsimmr_TDF_Hilderbrand.out, type = "matrix")
+
+
+```
+This model also converges and we con compare estimates and uncertainty given these TDFs. While the actual proportion estimates are similar between the two models, the estimates using Hilerbrand TDFs have more variance around than the estimates using the Mikkelsen TDFs. In addition, the negative variances have increased, both between the Nitrogen sources, as well as between the berry species.
+
+##We now move on to calculating TDFs using the linear equation from Felicetti et al. 2003 and using those TDFs to estimate diet of our brown bears.
+
+```{r}
+Felicetti13C<- function(x,y) {
+  y=-10.86+(0.42*x)
+}
+
+Felicetti15N<- function(x,y) {
+  y=5.28+(0.88*x)
+}
+
+d13C.Felicetti <- Felicetti13C(bears_species_means$mean13C)
+C13TDF.Felicetti <-abs(d13C.Felicetti-bears_species_means$mean13C)
+# Here are the Carbon TDFs from Felicetti's equation for ants, bilberry, crowberry, lingonberry, and moose
+print(C13TDF.Felicetti)
+
+d15N.Felicetti <- Felicetti15N(bears_species_means$mean15N)
+N15TDF.Felicetti <-abs(bears_species_means$mean15N)+abs(d15N.Felicetti)
+
+# And the TDFs for Nitrogen for ants, bilberry, crowberry, lingonberry, and moose
+N15TDF.Felicetti
+
+```
+
+
+
+
+```{r, include=FALSE}
+bear_speciesTDF_means.Felicetti <- cbind(C13TDF.Felicetti,N15TDF.Felicetti)
+print(bear_speciesTDF_means.Felicetti)
+
+
+bearsimmr_TDF_Felicetti = simmr_load(
+  mixtures=bearmix,
+  source_names=bears_species_names,
+  source_means=bears_species_means,
+  source_sds=bears_species_sds,
+  correction_means=bear_speciesTDF_means.Felicetti,
+  correction_sds=bear_speciesc_sds,
+  concentration_means = bear_species_conc
+  )
+
+plot(bearsimmr_TDF_Felicetti)
+
+```
+Again, the different TDFs have rendered a different mixing space, but out mixtures (consumers) are still within that space
+
+
+```{r, include=FALSE}
+
+bearsimmr_TDF_Felicetti.out = simmr_mcmc(
+  bearsimmr_TDF_Felicetti,
+  mcmc_control = list(
+    iter= 50000, burn=5000, thin=50, n.chain=4
+  )
+)
+
+```
+
+Convergence looks good and we have the model estimate means for each diet source, variance around those estimates and the residual model variance
+
+```{r, echo=FALSE}
+
+summary(bearsimmr_TDF_Felicetti.out, type = "diagnostics")
+
+summary(bearsimmr_TDF_Felicetti.out, type="statistics")
+summary(bearsimmr_TDF_Felicetti.out,'quantiles')
+
+plot(bearsimmr_TDF_Felicetti.out, type = "density")
+plot(bearsimmr_TDF_Felicetti.out, type = "matrix")
+
+```
+
+In this case we see some failry large differences in the estimates of our dietary proportions. While ants and moose are still estimated to make up a small proportion of the diet, bilberry, crowberry, and lingonberry are estimated to make up almost equal proportions of the dieat and there is a lot of uncertainty around the estimates. Even so, the negative correlations between moose and ants has greatly inflated, while the correlations between the berry species has decreased relative to the estimates using the Mikkelsen TDFs.
+
+##The next model uses no TDF corrections as was done in Ro et al. 2021
+
+```{r,include==FALSE}
+
+
+bear_speciesTDF_means.Ro <- matrix(
+  rep(
+    0,10
+  ),
+  ncol=2,
+  nrow=5
+)
+
+
+print(bear_speciesTDF_means.Ro)
+
+```
+
+
+
+```{r}
+
+bearsimmr_TDF_Ro = simmr_load(
+  mixtures=bearmix,
+  source_names=bears_species_names,
+  source_means=bears_species_means,
+  source_sds=bears_species_sds,
+  correction_means=bear_speciesTDF_means.Ro,
+  correction_sds=bear_speciesc_sds,
+  concentration_means = bear_species_conc
+  )
+
+plot(bearsimmr_TDF_Ro)
+
+
+```
+With not corrections for the trophic discrimination, our consumers fall well outside our mixing space. This is a huge red flag that should be addressed prior to running a mixture model, because the model will stil run and generate proportion estimates, they will just be really terrible. BUT since this is an exercise in sensitivity to different methods, I am going to run this model anyway. It is important to point out that in Ro et al. 2021, they provide a graph of their consumers and sources, and approximately half of their consumers fall within their mixing space.
+
+
+```{r, include=FALSE}
+
+bearsimmr_TDF_Ro.out = simmr_mcmc(
+  bearsimmr_TDF_Ro,
+  mcmc_control = list(
+    iter= 50000, burn=5000, thin=50, n.chain=4
+  )
+)
+
+```
+
+
+The model still converges, but the residual variance is much higher than the other models and the deviance is quite high as well. The estimates of the dietary proportions in this model are very different from the previous three, almost exclusively made of ants.
+```{r, echo=FALSE}
+
+
+summary(bearsimmr_TDF_Ro.out, type = "diagnostics")
+
+summary(bearsimmr_TDF_Ro.out, type="statistics")
+summary(bearsimmr_TDF_Ro.out,'quantiles')
+
+plot(bearsimmr_TDF_Ro.out, type = "density")
+plot(bearsimmr_TDF_Ro.out, type="matrix")
+
+
+```
+
+
+## The next step is looking at the effects of varying the Mikkelsen TDFs. I begin by reducing the Mikkelsen TDFs by 1 per mil across the board.
+
+
+```{r, echo=FALSE}
+
+bear_speciesTDF_means.MikkelsenMin1 <- bear_speciesTDF_means.Mikkelsen-1
+print(bear_speciesTDF_means.MikkelsenMin1)
+
+bearsimmr_TDF_MkkelsenMin1 = simmr_load(
+  mixtures=bearmix,
+  source_names=bears_species_names,
+  source_means=bears_species_means,
+  source_sds=bears_species_sds,
+  correction_means=bear_speciesTDF_means.MikkelsenMin1,
+  correction_sds=bear_speciesc_sds,
+  concentration_means = bear_species_conc
+  )
+
+plot(bearsimmr_TDF_MkkelsenMin1)
+
+```
+
+All of our sources have been shifted down and to the left, so I expect that we will have much higher estimates of ants, moose, and bilberry in our estimates
+
+```{r, include=FALSE}
+bearsimmr_TDF_MikkelsenMin1.out = simmr_mcmc(
+  bearsimmr_TDF_MkkelsenMin1,
+  mcmc_control = list(
+    iter= 50000, burn=5000, thin=50, n.chain=4
+  )
+)
+
+```
+
+
+
+The model converges, and we have dietary proportion estimates that are different from the Mikkelsen DTFs. As predicted, the estimated proportion of ants has increased, as has the estimated proportion of moose, though less drastically. Except for moose, there is a lot of uncerntainty around the dietary source estimates. We also have much smaller negative correlations between the sources, however comparing the deviance and residual variance is also important to consider.
+
+```{r, echo=FALSE}
+
+summary(bearsimmr_TDF_MikkelsenMin1.out, type = "diagnostics")
+
+summary(bearsimmr_TDF_MikkelsenMin1.out, type="statistics")
+summary(bearsimmr_TDF_MikkelsenMin1.out,'quantiles')
+
+plot(bearsimmr_TDF_MikkelsenMin1.out, type = "density")
+plot(bearsimmr_TDF_MikkelsenMin1.out, type="matrix")
+
+
+```
+
+
+## After decreasing the Mikkelsen TDFS by 1 per mil, I increase them by 1 per mil.
+
+
+```{r, echo=FALSE}
+
+bear_speciesTDF_means.MikkelsenPlus1 <- bear_speciesTDF_means.Mikkelsen+1
+print(bear_speciesTDF_means.MikkelsenPlus1)
+
+bearsimmr_TDF_MkkelsenPlus1 = simmr_load(
+  mixtures=bearmix,
+  source_names=bears_species_names,
+  source_means=bears_species_means,
+  source_sds=bears_species_sds,
+  correction_means=bear_speciesTDF_means.MikkelsenPlus1,
+  correction_sds=bear_speciesc_sds,
+  concentration_means = bear_species_conc
+  )
+
+plot(bearsimmr_TDF_MkkelsenPlus1)
+
+```
+
+Most of our consumers are insode the mixing space, but several are now outside of the mixing polygon.
+
+All of our sources have been shifted up and to the right, so I expect that we will have much higher estimates of berries, particularly bilberry in or final estimates.
+
+```{r, include=FALSE}
+
+bearsimmr_TDF_MikkelsenPlus1.out = simmr_mcmc(
+  bearsimmr_TDF_MkkelsenPlus1,
+  mcmc_control = list(
+    iter= 60000, burn=6000, thin=50, n.chain=4
+  )
+)
+
+```
+
+
+
+```{r, echo=FALSE}
+
+summary(bearsimmr_TDF_MikkelsenPlus1.out, type = "diagnostics")
+
+summary(bearsimmr_TDF_MikkelsenPlus1.out, type="statistics")
+summary(bearsimmr_TDF_MikkelsenPlus1.out,'quantiles')
+
+plot(bearsimmr_TDF_MikkelsenPlus1.out, type = "density")
+plot(bearsimmr_TDF_MikkelsenPlus1.out, type="matrix")
+
+
+```
+
+

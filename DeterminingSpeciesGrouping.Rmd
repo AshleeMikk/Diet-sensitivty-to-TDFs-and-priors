@@ -1,0 +1,188 @@
+---
+title: "DeterminingSpeciesGrouping"
+author: "Ashlee Mikkelsen"
+date: '2022-03-21'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# This analysis will look at the five food sources within the Swedish brown bear diet and determine if any diet sources need to be grouped based on isotopic and ecological similarities.
+
+```{r}
+
+
+rm(list = ls())
+##### Load necessary packages
+library(simmr)
+library(readxl)
+library(dplyr)
+
+```
+
+
+
+
+```{r}
+##### Load in necessary data
+DataClass_RD <- read_excel("C:/Users/amikk/Desktop/PhD/DataFiles/HairData_SI/DataClass_RD.xlsx")
+BearDietSources <- read_excel("C:/Users/amikk/Desktop/PhD/DataFiles/HairData_SI/BearSources20220317.xlsx")
+
+##### Taking data and turning it into a form usable by  the Simmr package
+bearmix <- cbind(DataClass_RD[,7],DataClass_RD[,6])
+colnames(bearmix) = c('d13C','d15N')
+
+bearsourcres_species <-BearDietSources %>%
+  group_by(Group)%>%
+  summarise(
+    mean13C= mean(d13C),
+    mean15N=mean(d15N),
+    sd13C=sd(d13C),
+    sd15N=sd(d15N),
+    mean13Cconc=mean(PrctC),
+    mean15Nconc=mean(PrctN)
+  )
+bears_species_names <- c("Ants","Bilberry","Crowberry","Lingonberry","Moose")
+bears_species_means <- bearsourcres_species[,2:3]
+bears_species_sds <- bearsourcres_species[,4:5]
+bear_species_conc <- (bearsourcres_species[,6:7])/100
+bear_speciesc_sds <- matrix(rep(1,10), ncol = 2, nrow = 5)
+
+```
+
+
+
+
+## In this model I am determining whether my food sources are isotopically distinct enough or if any need to be combined. Note that bear diets consist of two different ant species that were combined a priori. Prior to running the model, we plot the data with the TDFs to ensure they are within the mixing polygons. TDFs were calculated using a bear-specific linear regression determined by controlled feeding experiments. 
+
+```{r}
+
+d13C.Mikkelsen <- function(x,y){
+  y=-10.6+(0.42*x)
+}
+
+d15N.Mikkelsen <- function(x,y){
+  y=5.02+(0.90*x)
+}
+
+C13.Mikkelsen <- d13C.Mikkelsen(bears_species_means$mean13C)
+print(C13.Mikkelsen)
+C13TDF.Mikkelsen <-abs(C13.Mikkelsen-bears_species_means$mean13C)
+print(C13TDF.Mikkelsen)
+
+N15.Mikkelsen <- d15N.Mikkelsen(bears_species_means$mean15N)
+print(N15.Mikkelsen)
+N15TDF.Mikkelsen <-N15.Mikkelsen-bears_species_means$mean15N
+print(N15TDF.Mikkelsen)
+print(bears_species_means$mean15N)
+
+
+bear_speciesTDF_means <- cbind(C13TDF.Mikkelsen,N15TDF.Mikkelsen)
+
+bearsimmr_species1 = simmr_load(mixtures=bearmix,
+                     source_names=bears_species_names,
+                     source_means=bears_species_means,
+                     source_sds=bears_species_sds,
+                     correction_means=bear_speciesTDF_means,
+                     correction_sds=bear_speciesc_sds,
+                     concentration_means = bear_species_conc)
+
+plot(bearsimmr_species1)
+
+```
+
+## Now that we have determined that our data does fall within our mixing space, we will run our model
+```{r}
+
+#bearsimmr_species1_out = simmr_mcmc(
+#  bearsimmr_species1,
+#  mcmc_control = list(
+ #   iter= 50000, burn=5000, thin=50, n.chain=4
+  #)
+  #)
+
+```
+
+## Now we look at the diagnostic of the model to determine convergence and the diet estimates
+```{r}
+summary(bearsimmr_species1_out, type = "diagnostics")
+# Gelman diagnostics are all equal to one, indicating that our model has converged
+
+summary(bearsimmr_species1_out, type="statistics")
+# Here we can see the model deviance as well as the mean estimates and standard deviations for each diet source and the residual variation in the model
+
+summary(bearsimmr_species1_out,'quantiles')
+
+plot(bearsimmr_species1_out, type = "density")
+# This is a density plot of the estimates for each diet source as well as the uncertainty around those estimates
+```
+# Overview of diet estimates and uncertainty
+
+Ants are estimated to make up less than .10 of our brown bear's diet with low uncertainty. The range of proportions looks to be less than 0.05.
+
+Bilberry make up just under 0.50 of the brown bear diet with more uncertainty that our estimates for ants. However, these are still pretty good estimates with a range of approximately 0.10.
+
+Crowberry is estimated to make up a much smaller proportion of the diet, only around 0.12, but has an even more uncertainty than bilberry, with the range of possible solutions encompassing slightly more than 0.10.
+
+Lingonberry has the most uncertainty around the estimated diet proportion, with a mean of 0.29, but ranges from ~0.22  to ~0.35.
+
+Finally, moose is estimated with high certainty at a very low proportion of our brown bear diets.
+
+
+# Now we need to look at the positive and negative correlations between our diet sources.
+
+High negative correlations indicate the model's inability to differentiate between isotopically similar diet sources.
+```{r}
+plot(bearsimmr_species1_out, type = "matrix")
+# We have a strong negative correlation between ants and moose as well as Crowberry and Lingonberry. Bilberry and Lingonberry are marginally negatively correlated. It is often recommended that species that are highly correlated be combined to minimize uncertainty around dietary estimates. 
+
+#For the sake of scientific exploration, I will combine my two sources with the greates negative correlation, crowberry and lingonberry
+
+#But first, Simmr has some neat functions to compare dietary sources
+
+compare_sources(bearsimmr_species1_out,
+                source_names = c("Crowberry","Lingonberry"))
+# This compares two sources, graphs their estimated proportions and calculates the probability of one being greater than the other. In this case, the probability that the proportion of Crowberry is greater that the proportion of Lingonberry is 0.
+
+
+#######
+# Combine sources post-priori
+
+bearsimmr_out_species_posteriori <- 
+  combine_sources(
+    bearsimmr_species1_out,
+    to_combine = bearsimmr_species1_out$input$source_names[c(3,4)],
+    new_source_name = "CrowLingon"
+    
+  )
+  
+  
+plot(bearsimmr_out_species_posteriori, type = "density")
+# We now have a new density plot with the combined estimated proportions for crowberry and lingonberry in one category as well as the inflated uncertainty
+
+# We can look at out matrix plots again to check our correlations between diet sources
+plot(bearsimmr_out_species_posteriori, type = "matrix")
+
+# Now there is a huge negative correlation between Bilberry and the other 2 berries because when we combined them, we also combined their varinace and variance-covariances.
+
+# So should we combine all 3 berries?
+ 
+bearsimmr_out_species_posteriori2 <- 
+  combine_sources(
+    bearsimmr_species1_out,
+    to_combine = bearsimmr_species1_out$input$source_names[c(2,3,4)],
+    new_source_name = "AllBerries"
+    
+  )
+
+plot(bearsimmr_out_species_posteriori2, type = "density")
+# Now we have diet sources all estimated with very high certainty. Berries seem to make up almost all og the diet, while ants and moose make up minor proportions.
+
+plot(bearsimmr_out_species_posteriori2, type = "matrix")
+# But we still have very large negative correlations, now not only between ants and moose, as we might expect, but ants and the berry species as well
+
+```
+# Species grouping summary
+The dies sources within this system are all pretty similar. This is probably related to the silvicultural system in Sweden which favors high density of these berry species and similar diets between the moose and ants within the system. Combining sources does decrease the uncertainty around our diet estimates, but it does not eliminate strong negative correlations between food sources. Given that the model provides fairly robust estimates without combining food sources, I would recommend not combining sources and being explicit about the negative correlations and what this means for interpreting diet sources. 
+

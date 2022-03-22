@@ -32,13 +32,15 @@ library(simmr)
 library(readxl)
 library(dplyr)
 
+setwd("C:\\Users\\amikk\\PhD\\DataFiles\\HairData_SI")
+
 ```
 
 
 ```{r, include=FALSE}
 ##### Load in necessary data
-DataClass_RD <- read_excel("C:/Users/amikk/Desktop/PhD/DataFiles/HairData_SI/DataClass_RD.xlsx")
-BearDietSources <- read_excel("C:/Users/amikk/Desktop/PhD/DataFiles/HairData_SI/BearSources20220317.xlsx")
+DataClass_RD <- read_excel("DataClass_RD.xlsx")
+BearDietSources <- read_excel("BearSources20220317.xlsx")
 
 ##### Taking data and turning it into a form usable by  the Simmr package
 bearmix <- cbind(DataClass_RD[,7],DataClass_RD[,6])
@@ -78,6 +80,7 @@ Mikkelsen15N <- function(x,y){
 
 # I use these linear equations to predict the isotopic signature of a brown bear eating 100% of a diet source (y) given the mean isotopic signature of that source (x)
 
+
 d13C.Mikkelsen <- Mikkelsen13C(bears_species_means$mean13C)
 print(d13C.Mikkelsen)
 
@@ -88,6 +91,7 @@ C13TDF.Mikkelsen <-abs(d13C.Mikkelsen-bears_species_means$mean13C)
 print(C13TDF.Mikkelsen)
 
 # Now we repeat the process for Nitrogen
+
 d15N.Mikkelsen <- Mikkelsen15N(bears_species_means$mean15N)
 print(d15N.Mikkelsen)
 N15TDF.Mikkelsen <-d15N.Mikkelsen-bears_species_means$mean15N
@@ -99,7 +103,7 @@ print(N15TDF.Mikkelsen)
 
 Prior to running our model, I performed a check that my consumers fall within the mixing space
 
-```{r, include=FALSE}
+```{r, echo=FALSE}
 
 bear_speciesTDF_means.Mikkelsen <- cbind(C13TDF.Mikkelsen,N15TDF.Mikkelsen)
 print(bear_speciesTDF_means.Mikkelsen)
@@ -125,7 +129,7 @@ Next we run the model and examine output
 bearsimmr_TDF_Mikkelsen.out = simmr_mcmc(
   bearsimmr_TDF_Mikkelsen,
   mcmc_control = list(
-    iter= 50000, burn=5000, thin=50, n.chain=4
+    iter= 60000, burn=6000, thin=50, n.chain=4
   )
   )
 
@@ -168,7 +172,7 @@ print(C13TDF.Hilderbrand)
 
 d15N.Hilderbrand <- Hilderbrand15N(bears_species_means$mean15N)
 print(d15N.Hilderbrand)
-N15TDF.Hilderbrand <-abs(bears_species_means$mean15N)+abs(d15N.Hilderbrand)
+N15TDF.Hilderbrand <-d15N.Hilderbrand-bears_species_means$mean15N
 
 #Here are the calculated Nitrogen TDFs for ants, bilberry crowberry, lingonberry, and moose
 print(N15TDF.Hilderbrand)
@@ -204,7 +208,7 @@ Here we can see that the different TDFs cacluted from Hilderbrand's linear equat
 bearsimmr_TDF_Hilderbrand.out = simmr_mcmc(
   bearsimmr_TDF_Hilderbrand,
   mcmc_control = list(
-    iter= 50000, burn=5000, thin=50, n.chain=4
+    iter= 60000, burn=6000, thin=50, n.chain=4
   )
 )
 
@@ -246,7 +250,7 @@ C13TDF.Felicetti <-abs(d13C.Felicetti-bears_species_means$mean13C)
 print(C13TDF.Felicetti)
 
 d15N.Felicetti <- Felicetti15N(bears_species_means$mean15N)
-N15TDF.Felicetti <-abs(bears_species_means$mean15N)+abs(d15N.Felicetti)
+N15TDF.Felicetti <-d15N.Felicetti-bears_species_means$mean15N
 
 # And the TDFs for Nitrogen for ants, bilberry, crowberry, lingonberry, and moose
 N15TDF.Felicetti

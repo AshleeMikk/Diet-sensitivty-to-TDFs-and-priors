@@ -52,6 +52,9 @@ rm(list = ls())
 library(simmr)
 library(readxl)
 library(dplyr)
+library(ggplot2)
+library(viridis)
+
 setwd("C:\\Users\\amikk\\Documents\\Rprojects\\Diet-sensitivty-to-TDFs-and-priors")
 
 ```
@@ -529,3 +532,28 @@ plot(bearsimmr_TDF_MikkelsenPlus1.out, type="matrix")
 ```
 
 # Summary
+
+
+```{r}
+
+SummaryData <- read_excel("DietEstimates.xlsx")
+
+
+ggplot(data = SummaryData, aes(Dsource,DietProp))+
+  geom_line(aes(group=Model,lty=Model, color=Model),lwd=1)+
+  geom_point(size=6,alpha=0.7, aes(color=Model))+
+  scale_color_viridis(discrete = TRUE, end=0.9)+
+  theme(axis.text = element_text(size=16),
+        axis.title = element_text(size=16,face = "bold"),
+        panel.background = element_rect(fill = "grey97"),
+        legend.text = element_text(size=14),
+        legend.title = element_text(size=14,face="bold"))+
+  scale_x_continuous(labels = c("Ants","Bilberries","Crowberries","Lingonberries","Moose"))+
+  xlab("Diet source")+
+  ylab("Estimated dietary proportion")+
+  labels(color="Model",pch="Model",lty="Model")
+
+  
+
+```
+

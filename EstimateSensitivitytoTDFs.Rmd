@@ -10,6 +10,7 @@ editor_options:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
 ```
 
 Since I concluded from my previous analysis not to group sources
@@ -51,8 +52,7 @@ rm(list = ls())
 library(simmr)
 library(readxl)
 library(dplyr)
-
-setwd("C:\\Users\\amikk\\PhD\\DataFiles\\HairData_SI")
+setwd("C:\\Users\\amikk\\Documents\\Rprojects\\Diet-sensitivty-to-TDFs-and-priors")
 
 ```
 

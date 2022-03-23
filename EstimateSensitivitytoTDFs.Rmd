@@ -541,17 +541,16 @@ SummaryData <- read_excel("DietEstimates.xlsx")
 
 ggplot(data = SummaryData, aes(Dsource,DietProp))+
   geom_line(aes(group=Model,lty=Model, color=Model),lwd=1)+
-  geom_point(size=6,alpha=0.7, aes(color=Model))+
-  scale_color_viridis(discrete = TRUE, end=0.9)+
-  theme(axis.text = element_text(size=16),
-        axis.title = element_text(size=16,face = "bold"),
+  geom_point(size=7,alpha=0.8, aes(color=Model))+
+  scale_color_viridis(discrete = TRUE, end=0.95)+
+  theme(axis.text = element_text(size=20),
+        axis.title = element_text(size=20,face = "bold"),
         panel.background = element_rect(fill = "grey97"),
-        legend.text = element_text(size=14),
-        legend.title = element_text(size=14,face="bold"))+
+        legend.text = element_text(size=20),
+        legend.title = element_text(size=20,face="bold"))+
   scale_x_continuous(labels = c("Ants","Bilberries","Crowberries","Lingonberries","Moose"))+
   xlab("Diet source")+
-  ylab("Estimated dietary proportion")+
-  labels(color="Model",pch="Model",lty="Model")
+  ylab("Estimated dietary proportion")
 
   
 

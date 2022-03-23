@@ -1,0 +1,252 @@
+---
+title: "ComparingPriors"
+author: "Ashlee Mikkelsen"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load and prep data load rquired packages, include=FALSE}
+
+rm(list = ls())
+
+library(simmr)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(viridis)
+
+setwd("C:\\Users\\amikk\\Documents\\Rprojects\\Diet-sensitivty-to-TDFs-and-priors")
+
+##### Load in necessary data
+DataClass_RD <- read_excel("DataClass_RD.xlsx")
+BearDietSources <- read_excel("BearSources20220317.xlsx")
+
+##### Taking data and turning it into a form usable by  the Simmr package
+bearmix <- cbind(DataClass_RD[,7],DataClass_RD[,6])
+colnames(bearmix) = c('d13C','d15N')
+
+bearsourcres_species <-BearDietSources %>%
+  group_by(Group)%>%
+  summarise(
+    mean13C= mean(d13C),
+    mean15N=mean(d15N),
+    sd13C=sd(d13C),
+    sd15N=sd(d15N),
+    mean13Cconc=mean(PrctC),
+    mean15Nconc=mean(PrctN)
+  )
+bears_species_names <- c("Ants","Bilberry","Crowberry","Lingonberry","Moose")
+bears_species_means <- bearsourcres_species[,2:3]
+bears_species_sds <- bearsourcres_species[,4:5]
+bear_species_conc <- (bearsourcres_species[,6:7])/100
+bear_speciesc_sds <- matrix(rep(1,10), ncol = 2, nrow = 5)
+
+
+```
+
+```{r calculate TDFs for diet estimation, include=FALSE}
+
+Mikkelsen13C <- function(x,y){
+  y=-10.6+(0.42*x)
+}
+
+Mikkelsen15N <- function(x,y){
+  y=5.02+(0.90*x)
+}
+
+# I use these linear equations to predict the isotopic signature of a brown bear eating 100% of a diet source (y) given the mean isotopic signature of that source (x)
+
+
+d13C.Mikkelsen <- Mikkelsen13C(bears_species_means$mean13C)
+print(d13C.Mikkelsen)
+
+# The actual TDF is the difference between our predicted isotopic signature for a bear eating 100% of that source and the mean isotopic signature for that source
+C13TDF.Mikkelsen <-abs(d13C.Mikkelsen-bears_species_means$mean13C)
+
+# Here are the TDFs for Carbon for ants, bilberries, crowberries, lingonberries, and moose
+print(C13TDF.Mikkelsen)
+
+# Now we repeat the process for Nitrogen
+
+d15N.Mikkelsen <- Mikkelsen15N(bears_species_means$mean15N)
+print(d15N.Mikkelsen)
+N15TDF.Mikkelsen <-d15N.Mikkelsen-bears_species_means$mean15N
+
+# And here we have the TDFs for Nitrogen for ants, bilberries, crowberry, lingonberry, and moose
+print(N15TDF.Mikkelsen)
+
+bear_speciesTDF_means.Mikkelsen <- cbind(C13TDF.Mikkelsen,N15TDF.Mikkelsen)
+print(bear_speciesTDF_means.Mikkelsen)
+
+
+
+```
+
+## Introduction
+The final step in understanding bear dietary estimates is looking at the effect of priors. There is disagreement among ecologists that use Bayesian frameworks about the use of informitive priors. I looked at three models, one with uninformitive priors, one with informitive priors, and one with very informitive priors. I then compared the distribution of the prior distribution to the posterior distribution and changes in the resulting diet estimates from each of the models.
+
+```{r bear diet estimates with uninformitive priors, include=FALSE}
+
+bearsimmr_TDF_Mikkelsen = simmr_load(
+  mixtures=bearmix,
+  source_names=bears_species_names,
+  source_means=bears_species_means,
+  source_sds=bears_species_sds,
+  correction_means=bear_speciesTDF_means.Mikkelsen,
+  correction_sds=bear_speciesc_sds,
+  concentration_means = bear_species_conc
+  )
+
+plot(bearsimmr_TDF_Mikkelsen)
+
+
+```
+
+## Model with uninformitive priors
+To compare the effect of adding informitive priors, I first ran a model with uninformitive priors. For this mosel I used the trophic discrimination factors that I derived using Hilerbrand et al. (1996), Felicetti et al. (2003), and Rode et al. (2016). The input for this model is the same used in determining groups and in comparing different trophic discrimination factors.
+
+```{r run Simmr uninformitive priors, include=FALSE}
+
+bearsimmr_TDF_Mikkelsen.out = simmr_mcmc(
+  bearsimmr_TDF_Mikkelsen,
+  mcmc_control = list(
+    iter= 60000, burn=6000, thin=50, n.chain=4
+  )
+)
+
+
+```
+
+```{r Uninformitive priors model diagnostics and summary, echo=FALSE}
+
+summary(bearsimmr_TDF_Mikkelsen.out, type = "diagnostics")
+
+summary(bearsimmr_TDF_Mikkelsen.out, type="statistics")
+summary(bearsimmr_TDF_Mikkelsen.out,'quantiles')
+plot(bearsimmr_TDF_Mikkelsen.out, type = "density")
+
+plot(bearsimmr_TDF_Mikkelsen.out, type = "matrix")
+
+```
+
+This graph compares the density of the prior distribution to the posterior distribution
+
+```{r compare uninformitive priors to estimates, echo=FALSE}
+
+prior_viz(bearsimmr_TDF_Mikkelsen.out)
+
+```
+## Some-what informitive priors
+
+Now I calculate infprmitive priors. These priors are the mean dietary proportions based on estimated dietary energy content from fecal analysis of brown bears in Sweden and Norway. These studies calculated the proportions of more diet sources than in this analysis so ants, bilberries, crowberry, lingonberry, and moose only make up 0.89 of Scandinavian bears. Because the proportions must sum to 1, the remaining proportion of the diet was added into my five diet sources, distributed evenly to maintain ratios. The standard deviations were all around 0.10, except for moose, which had a standard deviation of 0.16, which I incorporated into the variance around my prior estimates.
+
+```{r calculate priors with Simmr, echo=FALSE}
+
+InformitivePriors <- read_excel("PriorCalculations.xlsx")
+
+bearprior=simmr_elicit(n_sources = 5,
+                   c(0.20,0.19,0.16,0.09,0.36),
+                   c(0.05,0.05,0.05,0.05,0.075))
+
+```
+
+I actually get a warning message from the Simmr package that the standard deviations around these estimates are quite large.
+
+```{r run model with informitive priors, include=FALSE}
+
+bearsimmr_Priors.out <- simmr_mcmc(
+  bearsimmr_TDF_Mikkelsen,
+  prior_control = list(
+    means=bearprior$mean,
+    sd=bearprior$sd
+  ),
+  mcmc_control = list(
+    iter=60000, burn=6000, thin=50, n.chain=4
+  )
+)
+
+
+```
+
+We can compare the estimates and variance around the estimates that we get when we use informative priors versus uninformative priors.
+
+```{r diagnostics and summary of informitive priors, echo=FALSE}
+
+summary(bearsimmr_Priors.out, type = "diagnostics")
+
+summary(bearsimmr_Priors.out, type="statistics")
+summary(bearsimmr_Priors.out,'quantiles')
+plot(bearsimmr_Priors.out, type = "density")
+
+plot(bearsimmr_Priors.out, type = "matrix")
+
+
+```
+
+This gives the prior and posterior distributions from each model
+
+
+```{r comapring estimates and distributions of uninformitive vs informitive priors}
+
+
+prior_viz(bearsimmr_TDF_Mikkelsen.out)
+
+prior_viz(bearsimmr_Priors.out)
+
+```
+
+The distribution of my priors are fairly wide and is only similar to the posterior distribution in crowberry. It looks like these priors have a small effect on my diet estimates, and that the prior distributions based on scat analysis is quite different from the estimates derived from stable isotopes.
+
+```{r more informitive priors}
+
+
+bearprior2=simmr_elicit(n_sources = 5,
+                   c(0.20,0.19,0.16,0.09,0.36),
+                   c(0.025,0.025,0.025,0.025,0.004))
+```
+
+## More-informitive priors
+
+Because the addition of my informitive priors had only small effects on my diet estimates, I included another set of priors with standard deviations half of large as I used for the some-what informitive priors.
+
+```{r}
+
+bearsimmr_VeryInformPriors.out <- simmr_mcmc(
+  bearsimmr_TDF_Mikkelsen,
+  prior_control = list(
+    means=bearprior2$mean,
+    sd=bearprior2$sd
+  ),
+  mcmc_control = list(
+    iter=60000, burn=6000, thin=50, n.chain=4
+  )
+)
+
+
+```
+
+
+```{r}
+
+summary(bearsimmr_VeryInformPriors.out, type = "diagnostics")
+
+summary(bearsimmr_VeryInformPriors.out, type="statistics")
+summary(bearsimmr_VeryInformPriors.out,'quantiles')
+plot(bearsimmr_VeryInformPriors.out, type = "density")
+
+
+```
+
+
+```{r}
+
+prior_viz(bearsimmr_TDF_Mikkelsen.out)
+prior_viz(bearsimmr_Priors.out)
+prior_viz(bearsimmr_VeryInformPriors.out )
+
+```
+

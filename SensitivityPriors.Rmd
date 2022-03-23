@@ -142,7 +142,7 @@ prior_viz(bearsimmr_TDF_Mikkelsen.out)
 ```
 ## Some-what informitive priors
 
-Now I calculate infprmitive priors. These priors are the mean dietary proportions based on estimated dietary energy content from fecal analysis of brown bears in Sweden and Norway. These studies calculated the proportions of more diet sources than in this analysis so ants, bilberries, crowberry, lingonberry, and moose only make up 0.89 of Scandinavian bears. Because the proportions must sum to 1, the remaining proportion of the diet was added into my five diet sources, distributed evenly to maintain ratios. The standard deviations were all around 0.10, except for moose, which had a standard deviation of 0.16, which I incorporated into the variance around my prior estimates.
+Now I calculate informitive priors. These priors are the mean dietary proportions based on estimated dietary energy content from fecal analysis of brown bears in Sweden and Norway. These studies calculated the proportions of more diet sources than in this analysis so ants, bilberries, crowberry, lingonberry, and moose only make up 0.89 of Scandinavian bears. Because the proportions must sum to 1, the remaining proportion of the diet was added into my five diet sources, distributed evenly to maintain ratios. The standard deviations were all around 0.10, except for moose, which had a standard deviation of 0.16, which I incorporated into the variance around my prior estimates.
 
 ```{r calculate priors with Simmr, echo=FALSE}
 
@@ -247,6 +247,26 @@ plot(bearsimmr_VeryInformPriors.out, type = "density")
 prior_viz(bearsimmr_TDF_Mikkelsen.out)
 prior_viz(bearsimmr_Priors.out)
 prior_viz(bearsimmr_VeryInformPriors.out )
+
+```
+
+
+
+
+```{r}
+
+Fecal.SI <- read_excel("Fecal_StableIsotope_estimates.xlsx")
+
+ggplot(data = Fecal.SI, aes(Model,Estimate))+
+  geom_col(aes(group=DietSource, fill=DietSource))+
+  scale_fill_viridis(discrete = TRUE)+
+  theme(axis.text = element_text(size=20),
+        axis.title = element_text(size=20,face = "bold"),
+        panel.background = element_rect(fill = "grey97"),
+        legend.text = element_text(size=20),
+        legend.title = element_text(size=20,face="bold"))+
+  ylab("Estimated diet proportion")
+  
 
 ```
 

@@ -554,7 +554,17 @@ ggplot(data = SummaryData, aes(Dsource,DietProp))+
   xlab("Diet source")+
   ylab("Estimated dietary proportion")
 
-  
+
+ggplot(data = SummaryData, aes(Model,DietProp))+
+  geom_col(aes(group=Source, fill=Source))+
+  scale_fill_viridis(discrete = TRUE)+
+  theme(axis.text = element_text(size=20),
+        axis.title = element_text(size=20,face = "bold"),
+        panel.background = element_rect(fill = "grey97"),
+        legend.text = element_text(size=20),
+        legend.title = element_text(size=20,face="bold"))+
+  ylab("Estimated diet proportion")
+
 
 ```
 

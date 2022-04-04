@@ -1,0 +1,157 @@
+---
+title: "Bear Diet Estimates summary"
+author: "Ashlee Mikkelsen"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+rm(list = ls())
+setwd("~/Rprojects/Diet-sensitivty-to-TDFs-and-priors")
+
+
+##### Load in necessary data
+DataClass_RD <- read_excel("DataClass_RD.xlsx")
+BearDietSources <- read.csv("BearSources20220404.csv")
+
+##### Taking data and turning it into a form usable by  the Simmr package
+bearmix <- cbind(DataClass_RD[,7],DataClass_RD[,6])
+colnames(bearmix) = c('d13C','d15N')
+
+bearsourcres_species <-BearDietSources %>%
+  group_by(Group)%>%
+  summarise(
+    mean13C= mean(d13C),
+    mean15N=mean(d15N),
+    sd13C=sd(d13C),
+    sd15N=sd(d15N),
+    mean13Cconc=mean(PrctC),
+    mean15Nconc=mean(PrctN)
+  )
+bears_species_names <- c("Ants","Bilberry","Crowberry","Lingonberry","Moose")
+bears_species_means <- bearsourcres_species[,2:3]
+bears_species_sds <- bearsourcres_species[,4:5]
+bear_species_conc <- (bearsourcres_species[,6:7])/100
+bear_speciesc_sds <- matrix(rep(1,10), ncol = 2, nrow = 5)
+
+
+bears_3 <-BearDietSources %>%
+  group_by(Source3)%>%
+  summarise(
+    mean13C= mean(d13C),
+    mean15N=mean(d15N),
+    sd13C=sd(d13C),
+    sd15N=sd(d15N),
+    mean13Cconc=mean(PrctC),
+    mean15Nconc=mean(PrctN)
+  )
+bears_3_SourceNames <- c("AntMoose","Bilberry","CrowLingon")
+bears_3_SourceMeans <- bears_3[,2:3]
+bears_3_SourceSD <- bears_3[,4:5]
+bears_3_ConcMeans <- (bears_3[,6:7])/100
+bears_3_ConcSD <- matrix(rep(1,6), ncol = 2, nrow = 3)
+
+
+```
+
+
+Below I calculate my TDFs with my sources grouped
+
+```{r}
+
+d13C.Mikkelsen <- function(x,y){
+  y=-10.6+(0.42*x)
+}
+
+d15N.Mikkelsen <- function(x,y){
+  y=5.02+(0.90*x)
+}
+
+C13.Mikkelsen.3 <- d13C.Mikkelsen(bears_3$mean13C)
+print(C13.Mikkelsen.3)
+C13TDF.Mikkelsen.3 <-abs(C13.Mikkelsen.3-bears_3$mean13C)
+print(C13TDF.Mikkelsen.3)
+
+N15.Mikkelsen.3 <- d15N.Mikkelsen(bears_3$mean15N)
+print(N15.Mikkelsen.3)
+N15TDF.Mikkelsen.3 <-N15.Mikkelsen.3-bears_3$mean15N
+print(N15TDF.Mikkelsen.3)
+print(bears_3$mean15N)
+
+
+bears_TDF_means.3 <- cbind(C13TDF.Mikkelsen.3,N15TDF.Mikkelsen.3)
+
+bearsimmr_3sources = simmr_load(mixtures=bearmix,
+                     source_names=bears_3_SourceNames,
+                     source_means=bears_3_SourceMeans,
+                     source_sds=bears_3_SourceSD,
+                     correction_means=bears_TDF_means.3,
+                     correction_sds=bears_3_ConcSD,
+                     concentration_means = bears_3_ConcMeans)
+
+plot(bearsimmr_3sources)
+
+```
+
+## Now that we have determined that our data does fall within our mixing space, we will run our model
+```{r}
+
+bearsimmr_3sources.out = simmr_mcmc(
+  bearsimmr_3sources,
+  mcmc_control = list(
+    iter= 50000, burn=5000, thin=50, n.chain=4
+    )
+  )
+
+```
+
+## Now we look at the diagnostic of the model to determine convergence and the diet estimates
+```{r}
+summary(bearsimmr_3sources.out, type = "diagnostics")
+# Gelman diagnostics are all equal to one, indicating that our model has converged
+
+summary(bearsimmr_3sources.out, type="statistics")
+# Here we can see the model deviance as well as the mean estimates and standard deviations for each diet source and the residual variation in the model
+
+summary(bearsimmr_3sources.out,'quantiles')
+
+plot(bearsimmr_3sources.out, type = "density")
+# This is a density plot of the estimates for each diet source as well as the uncertainty around those estimates
+
+plot(bearsimmr_3sources.out, type = "matrix")
+
+```
+
+
+```{r}
+
+bearsimmr_out_2sources <- 
+  combine_sources(
+    bearsimmr_3sources.out,
+    to_combine = bearsimmr_3sources.out$input$source_names[c(2,3)],
+    new_source_name = "AllBerry"
+    
+  )
+
+
+plot(bearsimmr_out_2sources, type = "density")
+# We now have a new density plot with the combined estimated proportions for crowberry and lingonberry in one category as well as the inflated uncertainty
+
+# We can look at out matrix plots again to check our correlations between diet sources
+plot(bearsimmr_out_2sources, type = "matrix")
+
+
+```
+
+
+
+### Topics to cover (Table of contents)
+#### The conversion of hair to meat to meat to hair
+#### grouping end-members
+#### The biological plausability of diet estimates
+#### Possible explanations

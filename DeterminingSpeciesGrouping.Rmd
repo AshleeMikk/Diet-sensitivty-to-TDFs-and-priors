@@ -21,6 +21,8 @@ library(simmr)
 library(readxl)
 library(dplyr)
 
+setwd("~/Rprojects/Diet-sensitivty-to-TDFs-and-priors")
+
 ```
 
 
@@ -28,8 +30,8 @@ library(dplyr)
 
 ```{r}
 ##### Load in necessary data
-DataClass_RD <- read_excel("C:/Users/amikk/Desktop/PhD/DataFiles/HairData_SI/DataClass_RD.xlsx")
-BearDietSources <- read_excel("C:/Users/amikk/Desktop/PhD/DataFiles/HairData_SI/BearSources20220317.xlsx")
+DataClass_RD <- read_excel("DataClass_RD.xlsx")
+BearDietSources <- read_excel("BearSources20220317.xlsx")
 
 ##### Taking data and turning it into a form usable by  the Simmr package
 bearmix <- cbind(DataClass_RD[,7],DataClass_RD[,6])
@@ -101,7 +103,7 @@ bearsimmr_species1_out = simmr_mcmc(
   bearsimmr_species1,
   mcmc_control = list(
     iter= 50000, burn=5000, thin=50, n.chain=4
-  )
+    )
   )
 
 ```
@@ -187,4 +189,16 @@ plot(bearsimmr_out_species_posteriori2, type = "matrix")
 ```
 # Species grouping summary
 The dies sources within this system are all pretty similar. This is probably related to the silvicultural system in Sweden which favors high density of these berry species and similar diets between the moose and ants within the system. Combining sources does decrease the uncertainty around our diet estimates, but it does not eliminate strong negative correlations between food sources. Given that the model provides fairly robust estimates without combining food sources, I would recommend not combining sources and being explicit about the negative correlations and what this means for interpreting diet sources. 
+
+
+After presenting these and other results to the PhD committee and Keith Hobson, Keith suggested creating 3 endpoints: ants/moose, crow/lingonberry and bilberry. Below, I follow hos recommendations and compare diet estimates with three vs five endpoints and the negative correlations between the three end points. This will be important in moving forward using diet estimates or stable isotopes in further analysis and discussing these diet estimates with the project committee, because the estimates for nitrogen intake are very low.
+
+```{r}
+
+
+
+
+
+
+```
 

@@ -8,12 +8,11 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 ```
 # This analysis will look at the five food sources within the Swedish brown bear diet and determine if any diet sources need to be grouped based on isotopic and ecological similarities.
 
-```{r}
-
+```{r, include=FALSE}
 
 rm(list = ls())
 ##### Load necessary packages
@@ -25,25 +24,88 @@ setwd("~/Rprojects/Diet-sensitivty-to-TDFs-and-priors")
 
 ```
 
-
-
-
-```{r}
+```{r, include=FALSE}
 ##### Load in necessary data
-DataClass_RD <- read_excel("DataClass_RD.xlsx")
-BearDietSources <- read_excel("BearSources20220317.xlsx")
+Mixture.RAW <- read.csv("RawBearData_SI_CORT.csv")
+BearDietSources <- read.csv("BearSources20220404.csv")
+```
+
+##### Take raw SI data and convert moose hair to moose meat and correct for Suess
+```{r, include=FALSE}
+##### First I will correct the moose end-members to represent moose meat and not moose hair
+MooseH2M.N <- function(x,y){
+  y= 0.87*x
+}
+MooseH2M.C <- function(x,y){
+  y= 0.99*x
+}
+GenN <- function(x,y){
+  y=1*x
+}
+GenC <- function(x,y){
+  y=1*x
+}
+MooseMeatN <-rep(0,135)
+MooseMeatC <- rep(0,135)
+RawN <- BearDietSources$d15N
+RawC <- BearDietSources$d13C
+Dsource <- BearDietSources$Group
+DF <- as.data.frame(cbind(Dsource,RawC,RawN,MooseMeatC,MooseMeatN))
+DF$RawC <- as.numeric(DF$RawC)
+DF$RawN <- as.numeric(DF$RawN)
+DF$MooseMeatC <- as.numeric(DF$MooseMeatC)
+DF$MooseMeatN <- as.numeric(DF$MooseMeatN)
+
+for (i in 1:135) {
+  if(DF$Dsource[i]=="Moose"){
+    DF$MooseMeatN[i]=MooseH2M.N(DF$RawN[i])
+  }else{
+    DF$MooseMeatN[i]=GenN(DF$RawN[i])
+  }
+}
+
+for (i in 1:135) {
+  if(DF$Dsource[i]=="Moose"){
+    DF$MooseMeatC[i]=MooseH2M.C(DF$RawC[i])
+  }else{
+    DF$MooseMeatC[i]=GenC(DF$RawC[i])
+  }
+}
+
+BearDietSources$d13C.C <- DF$MooseMeatC
+BearDietSources$d15N.C <- DF$MooseMeatN
+
+```
+
+
+```{r, include=FALSE}
+
+bear.si <- subset(Mixture.RAW, N15!="NA")
+bear.si <- subset(bear.si, year.represent!="NA")
+LastYr <- as.numeric(max(bear.si$year.represent))
+
+bear.si$year.represent <- as.numeric(bear.si$year.represent)
+bear.si$C13 <- as.numeric(bear.si$C13)
+
+C13.suess <- bear.si$C13-(+0.022*(LastYr-bear.si$year.represent))
+bear.si$C13.suess <- C13.suess
+
+```
+
+
+```{r, include=FALSE}
 
 ##### Taking data and turning it into a form usable by  the Simmr package
-bearmix <- cbind(DataClass_RD[,7],DataClass_RD[,6])
+bearmix <- cbind(bear.si$C13.suess,bear.si$N15)
 colnames(bearmix) = c('d13C','d15N')
 
 bearsourcres_species <-BearDietSources %>%
   group_by(Group)%>%
   summarise(
-    mean13C= mean(d13C),
-    mean15N=mean(d15N),
-    sd13C=sd(d13C),
-    sd15N=sd(d15N),
+    mean13C= mean(d13C.C),
+    mean15N=mean(d15N.C),
+    sd13C=sd(d13C.C),
+    sd15N=sd(d15N.C),
     mean13Cconc=mean(PrctC),
     mean15Nconc=mean(PrctN)
   )
@@ -56,11 +118,9 @@ bear_speciesc_sds <- matrix(rep(1,10), ncol = 2, nrow = 5)
 ```
 
 
-
-
 ## In this model I am determining whether my food sources are isotopically distinct enough or if any need to be combined. Note that bear diets consist of two different ant species that were combined a priori. Prior to running the model, we plot the data with the TDFs to ensure they are within the mixing polygons. TDFs were calculated using a bear-specific linear regression determined by controlled feeding experiments. 
 
-```{r}
+```{r,include=FALSE}
 
 d13C.Mikkelsen <- function(x,y){
   y=-10.6+(0.42*x)
@@ -97,12 +157,12 @@ plot(bearsimmr_species1)
 ```
 
 ## Now that we have determined that our data does fall within our mixing space, we will run our model
-```{r}
+```{r,include=FALSE}
 
 bearsimmr_species1_out = simmr_mcmc(
   bearsimmr_species1,
   mcmc_control = list(
-    iter= 50000, burn=5000, thin=50, n.chain=4
+    iter= 70000, burn=5000, thin=50, n.chain=4
     )
   )
 
@@ -192,13 +252,3 @@ The dies sources within this system are all pretty similar. This is probably rel
 
 
 After presenting these and other results to the PhD committee and Keith Hobson, Keith suggested creating 3 endpoints: ants/moose, crow/lingonberry and bilberry. Below, I follow hos recommendations and compare diet estimates with three vs five endpoints and the negative correlations between the three end points. This will be important in moving forward using diet estimates or stable isotopes in further analysis and discussing these diet estimates with the project committee, because the estimates for nitrogen intake are very low.
-
-```{r}
-
-
-
-
-
-
-```
-

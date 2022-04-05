@@ -9,44 +9,100 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
-
+```{r, include=FALSE}
 rm(list = ls())
 setwd("~/Rprojects/Diet-sensitivty-to-TDFs-and-priors")
 
+library(readxl)
+library(simmr)
+library(dplyr)
 
+```
+
+
+
+
+```{r, include=FALSE}
 ##### Load in necessary data
-DataClass_RD <- read_excel("DataClass_RD.xlsx")
+Mixture.RAW <- read.csv("RawBearData_SI_CORT.csv")
 BearDietSources <- read.csv("BearSources20220404.csv")
+```
 
+##### Take raw SI data and convert moose hair to moose meat and correct for Suess
+```{r, include=FALSE}
+##### First I will correct the moose end-members to represent moose meat and not moose hair
+MooseH2M.N <- function(x,y){
+  y= 0.87*x
+}
+MooseH2M.C <- function(x,y){
+  y= 0.99*x
+}
+GenN <- function(x,y){
+  y=1*x
+}
+GenC <- function(x,y){
+  y=1*x
+}
+MooseMeatN <-rep(0,135)
+MooseMeatC <- rep(0,135)
+RawN <- BearDietSources$d15N
+RawC <- BearDietSources$d13C
+Dsource <- BearDietSources$Group
+DF <- as.data.frame(cbind(Dsource,RawC,RawN,MooseMeatC,MooseMeatN))
+DF$RawC <- as.numeric(DF$RawC)
+DF$RawN <- as.numeric(DF$RawN)
+DF$MooseMeatC <- as.numeric(DF$MooseMeatC)
+DF$MooseMeatN <- as.numeric(DF$MooseMeatN)
+
+for (i in 1:135) {
+  if(DF$Dsource[i]=="Moose"){
+    DF$MooseMeatN[i]=MooseH2M.N(DF$RawN[i])
+  }else{
+    DF$MooseMeatN[i]=GenN(DF$RawN[i])
+  }
+}
+
+for (i in 1:135) {
+  if(DF$Dsource[i]=="Moose"){
+    DF$MooseMeatC[i]=MooseH2M.C(DF$RawC[i])
+  }else{
+    DF$MooseMeatC[i]=GenC(DF$RawC[i])
+  }
+}
+
+BearDietSources$d13C.C <- DF$MooseMeatC
+BearDietSources$d15N.C <- DF$MooseMeatN
+
+```
+
+
+```{r, include=FALSE}
+
+bear.si <- subset(Mixture.RAW, N15!="NA")
+bear.si <- subset(bear.si, year.represent!="NA")
+LastYr <- as.numeric(max(bear.si$year.represent))
+
+bear.si$year.represent <- as.numeric(bear.si$year.represent)
+bear.si$C13 <- as.numeric(bear.si$C13)
+
+C13.suess <- bear.si$C13-(+0.022*(LastYr-bear.si$year.represent))
+bear.si$C13.suess <- C13.suess
+
+```
+
+
+```{r, include=FALSE}
 ##### Taking data and turning it into a form usable by  the Simmr package
-bearmix <- cbind(DataClass_RD[,7],DataClass_RD[,6])
+bearmix <- cbind(bear.si$C13.suess,bear.si$N15)
 colnames(bearmix) = c('d13C','d15N')
-
-bearsourcres_species <-BearDietSources %>%
-  group_by(Group)%>%
-  summarise(
-    mean13C= mean(d13C),
-    mean15N=mean(d15N),
-    sd13C=sd(d13C),
-    sd15N=sd(d15N),
-    mean13Cconc=mean(PrctC),
-    mean15Nconc=mean(PrctN)
-  )
-bears_species_names <- c("Ants","Bilberry","Crowberry","Lingonberry","Moose")
-bears_species_means <- bearsourcres_species[,2:3]
-bears_species_sds <- bearsourcres_species[,4:5]
-bear_species_conc <- (bearsourcres_species[,6:7])/100
-bear_speciesc_sds <- matrix(rep(1,10), ncol = 2, nrow = 5)
-
 
 bears_3 <-BearDietSources %>%
   group_by(Source3)%>%
   summarise(
-    mean13C= mean(d13C),
-    mean15N=mean(d15N),
-    sd13C=sd(d13C),
-    sd15N=sd(d15N),
+    mean13C= mean(d13C.C),
+    mean15N=mean(d15N.C),
+    sd13C=sd(d13C.C),
+    sd15N=sd(d15N.C),
     mean13Cconc=mean(PrctC),
     mean15Nconc=mean(PrctN)
   )
@@ -59,10 +115,20 @@ bears_3_ConcSD <- matrix(rep(1,6), ncol = 2, nrow = 3)
 
 ```
 
+#### Introduction
+I have only been on this project around three months, but I already have a mantra: Swedish bears are weird.
 
-Below I calculate my TDFs with my sources grouped
+Below, I answer, to the best of my knowledge, the questions that I received in your e-mails and try and clarify a few things. Then I propose questions and actions to move forward.
 
-```{r}
+#### The conversion of moose hair to moose meat to bear to bear hair
+Keith has reminded me of the importance to ensure that when I am calculating my end-members that they represent a bear eating 100% moose meat, and not moose hair. Because obviously bears do not eat piles of hair. Anne also brought this up in her e-mail.
+
+I have this written out in detail elsewhere, but briefly I scoured the literature and found 2 feeding experiments for a variety of ungulates: bison, moose, elk, and caribou. Based on these studies, the isotopic signatures between ungulate hair and muscle are very similar (δ13C ratios between muscle and hair ranged from 0.99 in elk to 1.01 in Bison and δ15N ranged from 0.77 in elk to 1.0 in bison). I used the mean trophic discrimination values reported in these studies to estimate the trophic discrimination between plants and moose hair in our system and then multiplied the values of our moose hair by the mean ratio between muscle and hair for ungulates (δ13C= 0.99 and δ15N=0.87) to estimate the isotopic signatures of moose muscle in our system. I also applied a Suess effect on Carbon. These corrected value went in to calculating the end-members for the mixing model. 
+
+#### Taking Keith's advice to create three end-members
+
+Below is the mixing space created when I group my sources into three end members, one of ants and moose combined, bilberry, and crow and lingonberries. After combining sources into the end-members, I recalculated a trophic discrimination factor for my new end-members. Those six trophic discrimination factors are in the table below.
+```{r, echo=FALSE}
 
 d13C.Mikkelsen <- function(x,y){
   y=-10.6+(0.42*x)
@@ -73,18 +139,12 @@ d15N.Mikkelsen <- function(x,y){
 }
 
 C13.Mikkelsen.3 <- d13C.Mikkelsen(bears_3$mean13C)
-print(C13.Mikkelsen.3)
 C13TDF.Mikkelsen.3 <-abs(C13.Mikkelsen.3-bears_3$mean13C)
-print(C13TDF.Mikkelsen.3)
-
 N15.Mikkelsen.3 <- d15N.Mikkelsen(bears_3$mean15N)
-print(N15.Mikkelsen.3)
 N15TDF.Mikkelsen.3 <-N15.Mikkelsen.3-bears_3$mean15N
-print(N15TDF.Mikkelsen.3)
-print(bears_3$mean15N)
-
 
 bears_TDF_means.3 <- cbind(C13TDF.Mikkelsen.3,N15TDF.Mikkelsen.3)
+print(bears_TDF_means.3)
 
 bearsimmr_3sources = simmr_load(mixtures=bearmix,
                      source_names=bears_3_SourceNames,
@@ -98,20 +158,22 @@ plot(bearsimmr_3sources)
 
 ```
 
-## Now that we have determined that our data does fall within our mixing space, we will run our model
+#### Now that we have determined that our data does fall within our mixing space, we will run our model
 ```{r}
 
 bearsimmr_3sources.out = simmr_mcmc(
   bearsimmr_3sources,
   mcmc_control = list(
-    iter= 50000, burn=5000, thin=50, n.chain=4
+    iter= 70000, burn=5000, thin=50, n.chain=4
     )
   )
 
 ```
 
-## Now we look at the diagnostic of the model to determine convergence and the diet estimates
-```{r}
+#### Now we look at the diagnostic of the model to determine convergence and the diet estimates
+
+Below are the dietary estimates of the three end-members and we can see that the contribution of each source hasn't changed a whole lot with them grouped.
+```{r, include=FALSE}
 summary(bearsimmr_3sources.out, type = "diagnostics")
 # Gelman diagnostics are all equal to one, indicating that our model has converged
 
@@ -122,11 +184,30 @@ summary(bearsimmr_3sources.out,'quantiles')
 
 plot(bearsimmr_3sources.out, type = "density")
 # This is a density plot of the estimates for each diet source as well as the uncertainty around those estimates
+```
 
+
+```{r, echo=FALSE}
+ThreeSourceDietEstimates <- matrix(
+    c("Ant/moose","Bilberry","Crow/lingon",0.111,0.551,0.338,0.004,0.014,0.015,0.104,0.523,0.307,0.118,0.579,0.367),
+    ncol = 5,nrow = 3)
+BD <- as_tibble(ThreeSourceDietEstimates)
+
+names(BD)[1] <- "End-member"
+names(BD)[2] <- "Mean_diet_proportion"
+names(BD)[3] <- "Standard_deviation"
+names(BD)[4] <- "95%_CI_lower_bound"
+names(BD)[5] <- "95%_CI_upper_bound"
+
+print(BD)
+plot(bearsimmr_3sources.out, type = "density")
 plot(bearsimmr_3sources.out, type = "matrix")
 
 ```
 
+One thing that we see when we look at the correlation plot is that grouped end-member of crow and lingonberries is highly negatively correlated with bilberries. So even after combining, we still have two end-members that the modelis struggling to differentiate.
+
+So perhaps the solution is to only look at this in two dimensions of berries versus ants and moose. To explore this I *a posteriori* grouped all three berries into a single berry group. The output is below
 
 ```{r}
 
@@ -137,21 +218,25 @@ bearsimmr_out_2sources <-
     new_source_name = "AllBerry"
     
   )
-
-
 plot(bearsimmr_out_2sources, type = "density")
-# We now have a new density plot with the combined estimated proportions for crowberry and lingonberry in one category as well as the inflated uncertainty
-
-# We can look at out matrix plots again to check our correlations between diet sources
 plot(bearsimmr_out_2sources, type = "matrix")
 
-
 ```
+After combining all three berries into a single source, we now have a negative correlation between our remaining two sources that is -1.00. 
+
+Now I am stumped, because it seems that all five of our end-members are overlapping to some extent and as you combine them, their negative correlations with other sources is also combined and only concentrates and becomes larger rather than becoming smaller. It feels arbitrary to say that a negative of -0.76 between crowberry and lingonberry or the -0.71 correlation between ants and moose is too large for the model but the -0.9 correlation between crow/lingon and bilberry is tolerable.
+
+This problem of the ever-increasing correlations between end-members led me to conclude that leaving all five separate might be a better route that grouping.
+
+#### The biological plausability of diet estimates
+
+Aside from the issue of whether or not and how to group diet sources, another issue with the results is the diet estimates themselves. I think this caused some confusion because I didn't provide context for my diet estimates. Based on the stable isotope results, moose and ants make up a small portion bear diets (10-11%). Fecal diet studies, which Anne and Andreas have both said that they suspect under-estimates the amount of vertebrates in the diet, estimate the proportion of ungulates ~30% and ants 10-20%. So my estimates are very different from previous findings. Even when I used pretty informative priors, my estimates remained the same. 
+
 
 
 
 ### Topics to cover (Table of contents)
-#### The conversion of hair to meat to meat to hair
+
 #### grouping end-members
-#### The biological plausability of diet estimates
+
 #### Possible explanations

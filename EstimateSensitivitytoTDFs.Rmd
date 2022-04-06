@@ -619,14 +619,14 @@ SummaryData <- read_excel("DietEstimates.xlsx")
 
 
 ggplot(data = SummaryData, aes(Dsource,DietProp))+
-  geom_line(aes(group=Model,lty=Model, color=Model),lwd=1)+
-  geom_point(size=7,alpha=0.8, aes(color=Model))+
+  geom_line(aes(group=Model,lty=Model, color=Model),lwd=2)+
+  geom_point(size=9,alpha=0.8, aes(color=Model))+
   scale_color_viridis(discrete = TRUE, end=0.95)+
-  theme(axis.text = element_text(size=20),
-        axis.title = element_text(size=20,face = "bold"),
+  theme(axis.text = element_text(size=24),
+        axis.title = element_text(size=24,face = "bold"),
         panel.background = element_rect(fill = "grey97"),
-        legend.text = element_text(size=20),
-        legend.title = element_text(size=20,face="bold"))+
+        legend.text = element_text(size=24),
+        legend.title = element_text(size=24,face="bold"))+
   scale_x_continuous(labels = c("Ants","Bilberries","Crowberries","Lingonberries","Moose"))+
   xlab("Diet source")+
   ylab("Estimated dietary proportion")
@@ -635,11 +635,11 @@ ggplot(data = SummaryData, aes(Dsource,DietProp))+
 ggplot(data = SummaryData, aes(Model,DietProp))+
   geom_col(aes(group=Source, fill=Source))+
   scale_fill_viridis(discrete = TRUE)+
-  theme(axis.text = element_text(size=20),
-        axis.title = element_text(size=20,face = "bold"),
+  theme(axis.text = element_text(size=24),
+        axis.title = element_text(size=24,face = "bold"),
         panel.background = element_rect(fill = "grey97"),
-        legend.text = element_text(size=20),
-        legend.title = element_text(size=20,face="bold"))+
+        legend.text = element_text(size=24),
+        legend.title = element_text(size=24,face="bold"))+
   ylab("Estimated diet proportion")
 
 

@@ -9,9 +9,85 @@ output: word_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r load and prep data load rquired packages, include=FALSE}
 
-rm(list = ls())
+
+
+```{r, include=FALSE}
+##### Load in necessary data
+setwd("~/Rprojects/Diet-sensitivty-to-TDFs-and-priors")
+
+Mixture.RAW <- read.csv("RawBearData_SI_CORT.csv")
+BearDietSources <- read.csv("BearSources20220404.csv")
+```
+
+
+
+##### Take raw SI data and convert moose hair to moose meat and correct for Suess
+```{r, include=FALSE}
+##### First I will correct the moose end-members to represent moose meat and not moose hair
+MooseH2M.N <- function(x,y){
+  y= 0.87*x
+}
+MooseH2M.C <- function(x,y){
+  y= 0.99*x
+}
+GenN <- function(x,y){
+  y=1*x
+}
+GenC <- function(x,y){
+  y=1*x
+}
+MooseMeatN <-rep(0,135)
+MooseMeatC <- rep(0,135)
+RawN <- BearDietSources$d15N
+RawC <- BearDietSources$d13C
+Dsource <- BearDietSources$Group
+DF <- as.data.frame(cbind(Dsource,RawC,RawN,MooseMeatC,MooseMeatN))
+DF$RawC <- as.numeric(DF$RawC)
+DF$RawN <- as.numeric(DF$RawN)
+DF$MooseMeatC <- as.numeric(DF$MooseMeatC)
+DF$MooseMeatN <- as.numeric(DF$MooseMeatN)
+
+for (i in 1:135) {
+  if(DF$Dsource[i]=="Moose"){
+    DF$MooseMeatN[i]=MooseH2M.N(DF$RawN[i])
+  }else{
+    DF$MooseMeatN[i]=GenN(DF$RawN[i])
+  }
+}
+
+for (i in 1:135) {
+  if(DF$Dsource[i]=="Moose"){
+    DF$MooseMeatC[i]=MooseH2M.C(DF$RawC[i])
+  }else{
+    DF$MooseMeatC[i]=GenC(DF$RawC[i])
+  }
+}
+
+BearDietSources$d13C.C <- DF$MooseMeatC
+BearDietSources$d15N.C <- DF$MooseMeatN
+
+```
+
+
+
+```{r, include=FALSE}
+
+bear.si <- subset(Mixture.RAW, N15!="NA")
+bear.si <- subset(bear.si, year.represent!="NA")
+LastYr <- as.numeric(max(bear.si$year.represent))
+
+bear.si$year.represent <- as.numeric(bear.si$year.represent)
+bear.si$C13 <- as.numeric(bear.si$C13)
+
+C13.suess <- bear.si$C13-(+0.022*(LastYr-bear.si$year.represent))
+bear.si$C13.suess <- C13.suess
+
+```
+
+
+
+```{r load and prep data load rquired packages, include=FALSE}
 
 library(simmr)
 library(readxl)
@@ -19,14 +95,8 @@ library(dplyr)
 library(ggplot2)
 library(viridis)
 
-setwd("C:\\Users\\amikk\\Documents\\Rprojects\\Diet-sensitivty-to-TDFs-and-priors")
-
-##### Load in necessary data
-DataClass_RD <- read_excel("DataClass_RD.xlsx")
-BearDietSources <- read_excel("BearSources20220317.xlsx")
-
 ##### Taking data and turning it into a form usable by  the Simmr package
-bearmix <- cbind(DataClass_RD[,7],DataClass_RD[,6])
+bearmix <- cbind(bear.si$C13.suess,bear.si$N15)
 colnames(bearmix) = c('d13C','d15N')
 
 bearsourcres_species <-BearDietSources %>%
@@ -47,6 +117,8 @@ bear_speciesc_sds <- matrix(rep(1,10), ncol = 2, nrow = 5)
 
 
 ```
+
+
 
 ```{r calculate TDFs for diet estimation, include=FALSE}
 
@@ -114,12 +186,14 @@ To compare the effect of adding informitive priors, I first ran a model with uni
 bearsimmr_TDF_Mikkelsen.out = simmr_mcmc(
   bearsimmr_TDF_Mikkelsen,
   mcmc_control = list(
-    iter= 60000, burn=6000, thin=50, n.chain=4
+    iter= 70000, burn=6000, thin=50, n.chain=4
   )
 )
 
 
 ```
+
+
 
 ```{r Uninformitive priors model diagnostics and summary, echo=FALSE}
 
@@ -150,7 +224,7 @@ InformitivePriors <- read_excel("PriorCalculations.xlsx")
 
 bearprior=simmr_elicit(n_sources = 5,
                    c(0.20,0.19,0.16,0.09,0.36),
-                   c(0.05,0.05,0.05,0.05,0.075))
+                   c(0.04,0.04,0.04,0.04,0.02))
 
 ```
 
@@ -165,7 +239,7 @@ bearsimmr_Priors.out <- simmr_mcmc(
     sd=bearprior$sd
   ),
   mcmc_control = list(
-    iter=60000, burn=6000, thin=50, n.chain=4
+    iter=70000, burn=6000, thin=50, n.chain=4
   )
 )
 

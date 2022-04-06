@@ -237,6 +237,35 @@ summary(bearsimmr_3sources.out,'quantiles')
 
 ```
 
+
+```{r}
+summary(bearsimmr_3sources.fem.out, type = "diagnostics")
+# Gelman diagnostics are all equal to one, indicating that our model has converged
+
+summary(bearsimmr_3sources.fem.out, type="statistics")
+# Here we can see the model deviance as well as the mean estimates and standard deviations for each diet source and the residual variation in the model
+
+summary(bearsimmr_3sources.fem.out,'quantiles')
+```
+
+
+
+```{r}
+
+summary(bearsimmr_3sources.male.out, type = "diagnostics")
+# Gelman diagnostics are all equal to one, indicating that our model has converged
+
+summary(bearsimmr_3sources.male.out, type="statistics")
+# Here we can see the model deviance as well as the mean estimates and standard deviations for each diet source and the residual variation in the model
+
+summary(bearsimmr_3sources.male.out,'quantiles')
+
+
+
+```
+
+
+
 ```{r, echo=FALSE}
 ThreeSourceDietEstimates <- matrix(
     c("Ant/moose","Bilberry","Crow/lingon",0.104,0.523,0.309,0.004,0.014,0.015,0.104,0.523,0.309,0.118,0.579,0.367),
@@ -287,9 +316,13 @@ Andreas and I discussed this a few weeks ago and my theory for this discrepency 
 
 Hildebrand et al. 2000 estimated male brown bear diets ~46% protein and ~18% female brown bear diets and was as low as 3%.
 
-McLellan wt al. 2011 has similar results between scat and hair samples as
+McLellan wt al. 2011 has similar results between scat and hair samples as us.
+
+Even when I separate bears by sex, females eat 8.6-10.2% while males eat 12.5 - 15.5% ants and moose combined. 
 
 ### Plausability of using 15N as an indicator of protein intake
+
+
 
 ### Topics to cover (Table of contents)
 

@@ -2,12 +2,13 @@
 title: "Bear Diet Estimates summary"
 author: "Ashlee Mikkelsen"
 date: "`r Sys.Date()`"
-output: html_document
+output: word_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
 
 ```{r, include=FALSE}
 rm(list = ls())
@@ -16,13 +17,20 @@ setwd("~/Rprojects/Diet-sensitivty-to-TDFs-and-priors")
 library(readxl)
 library(simmr)
 library(dplyr)
+library(MuMIn)
 
 ```
+
 
 ```{r, include=FALSE}
 ##### Load in necessary data
 Mixture.RAW <- read.csv("RawBearData_SI_CORT.csv")
 BearDietSources <- read.csv("BearSources20220404.csv")
+
+
+# remove 1 extreme outlier 
+BearDietSources <- BearDietSources[-c(12),]
+
 ```
 
 ##### Take raw SI data and convert moose hair to moose meat and correct for Suess
@@ -30,7 +38,7 @@ BearDietSources <- read.csv("BearSources20220404.csv")
 ```{r, include=FALSE}
 ##### First I will correct the moose end-members to represent moose meat and not moose hair
 MooseH2M.N <- function(x,y){
-  y= 0.87*x
+  y= 0.88*x
 }
 MooseH2M.C <- function(x,y){
   y= 0.99*x
@@ -41,8 +49,8 @@ GenN <- function(x,y){
 GenC <- function(x,y){
   y=1*x
 }
-MooseMeatN <-rep(0,135)
-MooseMeatC <- rep(0,135)
+MooseMeatN <-rep(0,134)
+MooseMeatC <- rep(0,134)
 RawN <- BearDietSources$d15N
 RawC <- BearDietSources$d13C
 Dsource <- BearDietSources$Group
@@ -52,7 +60,7 @@ DF$RawN <- as.numeric(DF$RawN)
 DF$MooseMeatC <- as.numeric(DF$MooseMeatC)
 DF$MooseMeatN <- as.numeric(DF$MooseMeatN)
 
-for (i in 1:135) {
+for (i in 1:134) {
   if(DF$Dsource[i]=="Moose"){
     DF$MooseMeatN[i]=MooseH2M.N(DF$RawN[i])
   }else{
@@ -60,7 +68,7 @@ for (i in 1:135) {
   }
 }
 
-for (i in 1:135) {
+for (i in 1:134) {
   if(DF$Dsource[i]=="Moose"){
     DF$MooseMeatC[i]=MooseH2M.C(DF$RawC[i])
   }else{
@@ -72,6 +80,8 @@ BearDietSources$d13C.C <- DF$MooseMeatC
 BearDietSources$d15N.C <- DF$MooseMeatN
 
 ```
+
+
 
 ```{r, include=FALSE}
 
@@ -87,7 +97,80 @@ bear.si$C13.suess <- C13.suess
 
 ```
 
-```{r, include=FALSE}
+
+Now I use the K-nearest neighbor randomization test to deterimine if sources are distinct or not.
+
+```{r, echo=FALSE}
+library(factoextra)
+
+Carbon <- BearDietSources$d13C.C
+Nitrogen <- BearDietSources$d15N.C
+
+
+
+
+df<- cbind(Carbon,Nitrogen)
+x <- cbind(Carbon,Nitrogen)
+x <- as.matrix(x)
+x.scaled <- scale(x)
+
+dotchart(x)
+
+
+fviz_nbclust(x.scaled,kmeans, method = "gap_stat")
+
+
+(cl5 <- kmeans(x.scaled, centers=5,nstart = 25, iter.max = 150))
+plot(x, col = cl5$cluster)
+points(cl5$centers, col = 1:2, pch = 8, cex = 2)
+
+print(cl5)
+
+
+fviz_cluster(object = cl5, data = df)
+fviz_cluster(object = cl3, data = df)
+
+(cl3 <- kmeans(x.scaled, centers=3,nstart = 25, iter.max = 150))
+plot(x, col = cl3$cluster)
+points(cl3$centers, col = 1:2, pch = 8, cex = 2)
+fviz_cluster(object = cl3, data = x)
+
+print(cl3)
+
+# sum of squares
+ss <- function(x) sum(scale(x, scale = FALSE)^2)
+
+## cluster centers "fitted" to each obs.:
+fitted.x <- fitted(cl);  head(fitted.x)
+resid.x <- x - fitted(cl)
+
+## Equalities : ----------------------------------
+cbind(cl[c("betweenss", "tot.withinss", "totss")], # the same two columns
+         c(ss(fitted.x), ss(resid.x),    ss(x)))
+stopifnot(all.equal(cl$ totss,        ss(x)),
+	  all.equal(cl$ tot.withinss, ss(resid.x)),
+	  ## these three are the same:
+	  all.equal(cl$ betweenss,    ss(fitted.x)),
+	  all.equal(cl$ betweenss, cl$totss - cl$tot.withinss),
+	  ## and hence also
+	  all.equal(ss(x), ss(fitted.x) + ss(resid.x))
+	  )
+
+M5 <- manova(cbind(d13C.C,d15N.C)~Group, data=BearDietSources)
+summary(M5)
+print(M5)
+
+M3 <- manova(cbind(d13C.C,d15N.C)~Source3, data=BearDietSources)
+summary(M3)
+
+
+```
+
+
+
+
+
+```{r eval=FALSE, include=FALSE}
 ##### Taking data and turning it into a form usable by  the Simmr package
 bear.fem <- subset(bear.si,sex!="M")
 bear.male <- subset(bear.si, sex!="F")
@@ -130,13 +213,17 @@ Below, I answer, to the best of my knowledge, the questions that I received in y
 
 Keith has reminded me of the importance to ensure that when I am calculating my end-members that they represent a bear eating 100% moose meat, and not moose hair. Because obviously bears do not eat piles of hair. Anne also brought this up in her e-mail.
 
-I have this written out in detail elsewhere, but briefly I scoured the literature and found 2 feeding experiments for a variety of ungulates: bison, moose, elk, and caribou. Based on these studies, the isotopic signatures between ungulate hair and muscle are very similar (δ13C ratios between muscle and hair ranged from 0.99 in elk to 1.01 in Bison and δ15N ranged from 0.77 in elk to 1.0 in bison). I used the mean trophic discrimination values reported in these studies to estimate the trophic discrimination between plants and moose hair in our system and then multiplied the values of our moose hair by the mean ratio between muscle and hair for ungulates (δ13C= 0.99 and δ15N=0.87) to estimate the isotopic signatures of moose muscle in our system. I also applied a Suess effect on Carbon. These corrected values went in to calculating the end-members for the mixing model and the resulting TDFs.
+I have this written out in detail elsewhere, but briefly I scoured the literature and found 2 feeding experiments for a variety of ungulates: bison, moose, elk, and caribou. Based on these studies, the isotopic signatures between ungulate hair and muscle are very similar (δ13C ratios between muscle and hair ranged from 0.99 in elk to 1.01 in Bison and δ15N ranged from 0.77 in elk to 1.0 in bison). I used the mean trophic discrimination values reported in these studies to estimate the trophic discrimination between plants and moose hair in our system and then multiplied the values of our moose hair by the mean ratio between muscle and hair for ungulates (δ13C= 0.99 and δ15N=0.88) to estimate the isotopic signatures of moose muscle in our system. I also applied a Suess effect on Carbon. These corrected values went in to calculating the end-members for the mixing model and the resulting TDFs.
+
+#### Other food sources
+
+Anne mentioned gramoniods and as Nuria replied, we do not have graminoid samples from this area and only one sample of "cereal" from the study area. other diet studies have of course identified more than the 5 food items I included in this model, but we do not have samples for those. Also, the model already has issues differentiating between the end members, I don't know that adding another source would help. 
 
 #### Taking Keith's advice to create three end-members
 
 Below is the mixing space created when I group my sources into three end members, one of ants and moose combined, bilberry, and crow and lingonberries. After combining sources into the end-members, I recalculated a trophic discrimination factor for my new end-members. Those six trophic discrimination factors are in the table below.
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, eval=FALSE}
 
 d13C.Mikkelsen <- function(x,y){
   y=-10.6+(0.42*x)
@@ -186,13 +273,100 @@ bearsimmr_3sources.male = simmr_load(mixtures=male.mix,
 plot(bearsimmr_3sources.male)
 
 
+C13.Mikkelsen <- d13C.Mikkelsen(bears_species_means$mean13C)
+print(C13.Mikkelsen)
+C13TDF.Mikkelsen <-abs(C13.Mikkelsen-bears_species_means$mean13C)
+print(C13TDF.Mikkelsen)
+
+N15.Mikkelsen <- d15N.Mikkelsen(bears_species_means$mean15N)
+print(N15.Mikkelsen)
+N15TDF.Mikkelsen <-N15.Mikkelsen-bears_species_means$mean15N
+print(N15TDF.Mikkelsen)
+print(bears_species_means$mean15N)
+
+
+bear_speciesTDF_means <- cbind(C13TDF.Mikkelsen,N15TDF.Mikkelsen)
+
 
 
 ```
 
 #### Now that we have determined that our data does fall within our mixing space, we will run our model
 
-```{r}
+```{r, eval=FALSE}
+
+
+##### Taking data and turning it into a form usable by  the Simmr package
+bearmix <- cbind(bear.si$C13.suess,bear.si$N15)
+colnames(bearmix) = c('d13C','d15N')
+
+bearsourcres_species <-BearDietSources %>%
+  group_by(Group)%>%
+  summarise(
+    mean13C= mean(d13C.C),
+    mean15N=mean(d15N.C),
+    sd13C=sd(d13C.C),
+    sd15N=sd(d15N.C),
+    mean13Cconc=mean(PrctC),
+    mean15Nconc=mean(PrctN)
+  )
+bears_species_names <- c("Ants","Bilberry","Crowberry","Lingonberry","Moose")
+bears_species_means <- bearsourcres_species[,2:3]
+bears_species_sds <- bearsourcres_species[,4:5]
+bear_species_conc <- (bearsourcres_species[,6:7])/100
+bear_speciesc_sds <- matrix(rep(1,10), ncol = 2, nrow = 5)
+
+
+C13.Mikkelsen <- d13C.Mikkelsen(bears_species_means$mean13C)
+print(C13.Mikkelsen)
+C13TDF.Mikkelsen <-abs(C13.Mikkelsen-bears_species_means$mean13C)
+print(C13TDF.Mikkelsen)
+
+N15.Mikkelsen <- d15N.Mikkelsen(bears_species_means$mean15N)
+print(N15.Mikkelsen)
+N15TDF.Mikkelsen <-N15.Mikkelsen-bears_species_means$mean15N
+print(N15TDF.Mikkelsen)
+print(bears_species_means$mean15N)
+
+bearsourcres_species <-BearDietSources %>%
+  group_by(Group)%>%
+  summarise(
+    mean13C= mean(d13C.C),
+    mean15N=mean(d15N.C),
+    sd13C=sd(d13C.C),
+    sd15N=sd(d15N.C),
+    mean13Cconc=mean(PrctC),
+    mean15Nconc=mean(PrctN)
+  )
+
+
+
+bearsimmr_baseline = simmr_load(mixtures=bearmix,
+                     source_names=bears_species_names,
+                     source_means=bears_species_means,
+                     source_sds=bears_species_sds,
+                     correction_means=bear_speciesTDF_means,
+                     correction_sds=bear_speciesc_sds,
+                     concentration_means = bear_species_conc)
+
+```
+
+
+
+
+
+
+
+
+```{r, eval=FALSE}
+
+bearsimmr_5sources.out=simmr_mcmc(
+  bearsimmr_baseline,
+  mcmc_control = list(
+    iter= 70000, burn=5000, thin=50, n.chain=4
+    )
+  )
+
 
 bearsimmr_3sources.out = simmr_mcmc(
   bearsimmr_3sources,
@@ -209,7 +383,6 @@ bearsimmr_3sources.fem.out = simmr_mcmc(
   )
 
 
-
 bearsimmr_3sources.male.out = simmr_mcmc(
   bearsimmr_3sources.male,
   mcmc_control = list(
@@ -217,14 +390,27 @@ bearsimmr_3sources.male.out = simmr_mcmc(
     )
   )
 
-
-
-
 ```
 
 #### Now we look at the diagnostic of the model to determine convergence and the diet estimates
 
 Below are the dietary estimates of the three end-members and we can see that the contribution of each source hasn't changed a whole lot with them grouped.
+
+```{r}
+summary(bearsimmr_5sources.out, type = "diagnostics")
+# Gelman diagnostics are all equal to one, indicating that our model has converged
+
+summary(bearsimmr_5sources.out, type="statistics")
+# Here we can see the model deviance as well as the mean estimates and standard deviations for each diet source and the residual variation in the model
+
+summary(bearsimmr_5sources.out,'quantiles')
+
+
+plot(bearsimmr_5sources.out)
+
+```
+
+
 
 ```{r, include=FALSE}
 summary(bearsimmr_3sources.out, type = "diagnostics")
@@ -284,11 +470,11 @@ plot(bearsimmr_3sources.out, type = "matrix")
 
 ```
 
-One thing that we see when we look at the correlation plot is that grouped end-member of crow and lingonberries is highly negatively correlated with bilberries. So even after combining, we still have two end-members that the modelis struggling to differentiate.
+One thing that we see when we look at the correlation plot is that grouped end-member of crow and lingonberries is highly negatively correlated with bilberries. So even after combining, we still have two end-members that the model is struggling to differentiate.
 
 So perhaps the solution is to only look at this in two dimensions of berries versus ants and moose. To explore this I *a posteriori* grouped all three berries into a single berry group. The output is below
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, eval=FALSE}
 
 bearsimmr_out_2sources <- 
   combine_sources(
@@ -300,30 +486,150 @@ bearsimmr_out_2sources <-
 plot(bearsimmr_out_2sources, type = "density")
 plot(bearsimmr_out_2sources, type = "matrix")
 
+Source.2_full <- bearsimmr_out_2sources$output$`1`$BUGSoutput$sims.list$p
+write.csv(Source.2_full, "BearDietEstimates2Sources.csv")
+Test3 <- read.csv("BearDietEstimates2Sources.csv")
+
 ```
 
 After combining all three berries into a single source, we now have a negative correlation between our remaining two sources that is -1.00.
 
-Now I am stumped, because it seems that all five of our end-members are overlapping to some extent and as you combine them, their negative correlations with other sources is also inflated and the negative correlations become larger rather than becoming smaller. It feels arbitrary to say that a negative of -0.76 between crowberry and lingonberry or the -0.71 correlation between ants and moose is too large for the model but the -0.9 correlation between crow/lingon and bilberry is tolerable. And then how do I address the -1.00 between all three berries and ants/moose?
+Now I am stumped, because it seems that all five of our end-members are overlapping to some extent and as you combine them, their negative correlations with other sources is also inflated and the negative correlations become larger rather than becoming smaller. It feels arbitrary to say that a negative of -0.76 between crowberry and lingonberry or the -0.71 correlation between ants and moose is too large for the model but the -0.90 correlation between crow/lingon and bilberry is tolerable. And then how do I address the -1.00 between all three berries and ants/moose?
 
 This problem of the ever-increasing correlations between end-members led me to conclude that leaving all five separate might be a better route that grouping.
+
+Anne also asked an great an obvious question that I cannot answer or find a good explanation for: if the model cannot distinguish the two sources, how does it estimate it? I understand the model will give you an estimate, no matter how badly the data fit it, and there are many papers and resources that discuss the sources not being isotopically distinct, but in all of those examples the overlapping sources have wide, overlapping distributions, while ours are fairly narrow and tight. Is this just an artifact of sample size?
+
+
+
+```{r}
+
+library(viridis)
+
+#Test <- as.data.frame(bearsimmr_5sources.out$output$`1`$BUGSoutput$sims.list$p)
+
+Source.3_full <- as.data.frame(bearsimmr_3sources.out$output$`1`$BUGSoutput$sims.list$p)
+write.csv(Source.3_full,"BrownBearDiet3Source.csv" )
+Test2 <-  read.csv("BrownBearDiet3Source.csv")
+
+write.csv(Test,"BrownBearDiet5Source.csv")
+#Test <- read.csv("BrownBearDiet5Source.csv", header = TRUE)
+
+P <- palette(viridis(6))
+
+ggplot(data = Test)+
+  geom_density(aes(Ants), fill=P[1], alpha=0.3, color=P[1], lwd=1)+
+  geom_density(aes(Bilberry), fill=P[2], alpha=0.3, color=P[2], lwd=1)+
+  geom_density(aes(Crowberry), fill=P[3], alpha=0.3, color=P[3], lwd=1)+
+  geom_density(aes(Lingonberry), fill=P[4], alpha=0.3, color=P[4], lwd=1)+
+  geom_density(aes(Moose), fill=P[5], alpha=0.4, color=P[5], lwd=1)+
+  theme_classic()+
+  theme(axis.text = element_text(size=18, face="bold"),
+        axis.title = element_text(size = 20, face = "bold"),
+        axis.line = element_line(size=1.2),
+        title = element_text(size = 18, face = "bold"))+
+  xlab("Estimated Proportion of Diet")+
+  ylab("Density")+
+  scale_y_continuous(expand = c(0,0))+
+  scale_x_continuous(expand = c(0,0))+
+  geom_text(label="Moose", x=0.064, y=120, size=8)+
+  geom_text(label="Ants", x=0.084, y=80, size=8)+
+  geom_text(label="Crowberry", x=0.143, y=22, size=8)+
+  geom_text(label="Lingonberry", x=0.27, y=22, size=8)+
+  geom_text(label="Bilberry", x=0.475, y=22, size=8)+
+  ggtitle("Posterior Distributions of Brown Bear Dietary Estimates With 5 Sources")
+
+P2 <- palette(viridis(4))
+ggplot(data = Test2)+
+  geom_density(aes(AntMoose), fill=P2[1], alpha=0.3, color=P2[1], lwd=1)+
+  geom_density(aes(Bilberry), fill=P2[2], alpha=0.3, color=P2[2], lwd=1)+
+  geom_density(aes(CrowLingon), fill=P2[3], alpha=0.3, color=P2[3], lwd=1)+
+  theme_classic()+
+  theme(axis.text = element_text(size=18, face="bold"),
+        axis.title = element_text(size = 20, face = "bold"),
+        axis.line = element_line(size=1.2),
+        title = element_text(size = 18, face = "bold"))+
+  xlab("Estimated Proportion of Diet")+
+  ylab("Density")+
+  scale_y_continuous(expand = c(0,0))+
+  scale_x_continuous(expand = c(0,0))+
+  geom_text(label="Ants & Moose", x=0.152, y=100, size=8)+
+  geom_text(label="Crowberry & Lingonberry", x=0.337, y=29, size=8)+
+  geom_text(label="Bilberry", x=0.56, y=32, size=8)+
+  ggtitle("Posterior Distributions of Brown Bear Dietary Estimates With 3 Sources")
+
+
+P3 <- palette(viridis(3))
+ggplot(data = Test3)+
+  geom_density(aes(AntMoose), fill=P3[1], alpha=0.3, color=P3[1], lwd=1)+
+  geom_density(aes(AllBerry), fill=P3[2], alpha=0.3, color=P3[2], lwd=1)+
+  theme_classic()+
+  theme(axis.text = element_text(size=18, face="bold"),
+        axis.title = element_text(size = 20, face = "bold"),
+        axis.line = element_line(size=1.2),
+        title = element_text(size = 18, face = "bold"))+
+  xlab("Estimated Proportion of Diet")+
+  ylab("Density")+
+  scale_y_continuous(expand = c(0,0))+
+  scale_x_continuous(expand = c(0,0))+
+  geom_text(label="Ants & Moose", x=0.18, y=100, size=8)+
+  geom_text(label="All 3 Berries", x=0.83, y=100, size=8)+
+  ggtitle("Posterior Distributions of Brown Bear Dietary Estimates With 2 Sources")
+
+
+
+
+```
+
 
 #### The biological plausability of diet estimates
 
 Aside from the issue of whether or not and how to group diet sources, another issue with the results is the diet estimates themselves. I think this caused some confusion because I didn't provide context for my diet estimates. Based on the stable isotope results, moose and ants make up a small portion bear diets (10-11%). Fecal diet studies, which Anne and Andreas have both said likely under-estimate the amount of vertebrates, estimate the proportion of ungulates \~30% and ants 10-20%. So my estimates are very different from previous findings. Even when I used pretty informative priors based on these previous studies, my estimates remained the same.
 
-Andreas and I discussed this a few weeks ago and my theory for this discrepency has to do with isotopic routing. Previous captive feeding studies have been done in zoo settings under strict ICAUC guidlines, and therfore are not resource in any way (for very long). However, bears in our system are more vegatarian than North American bears and their protein intake is limited to the spring. So it may be that during the spring, our bears are preferentially routing δ15N to muscle mass and milk, in the case of lactating females.This would result in regular 14N being used for hair growth unless a bear has a surpluss of protein and can afford to use 15N in hair. This would result in an underestimation of moose and ants in the diet.
+
+One issue I am having when interrpreting these results is how, where, and when brown bears are getting protein. We had a meeting with Ludovic whoce results showed that bears were not actively using and seemed to be avoiding areas where moose are likely to be killed.There was also a study that put camera traps on carcasses and they did not detect many bears at carcasses. But Both Andreas and Anne have mentioned male bears using moose carcasses in spring from killed or wounded moose in fall.
+
+Because hair is mostly protein, the hair should predominately be represented by molecules derived from ants and moose. 
+
+Andreas and I discussed this a few weeks ago and my theory for this discrepancy has to do with isotopic routing. Previous captive feeding studies have been done in zoo settings under strict ICAUC guidelines, and therefore are not resource limited in any way (for very long). However, bears in our system are more vegetarian than North American bears and their protein intake is limited to the spring. So it may be that during the spring, our bears are preferentially routing δ15N to muscle mass and milk, in the  case of lactating females.This would result in regular 14N being used for hair growth unless a bear has a surplus of protein and can afford to use 15N in hair. This would result in an underestimation of moose and ants in the diet.
 
 Hildebrand et al. 2000 estimated male brown bear diets ~46% protein and ~18% female brown bear diets and was as low as 3%.
 
-McLellan wt al. 2011 has similar results between scat and hair samples as us.
+McLellan et al. 2011 has similar results between scat and hair samples as us.
 
 Even when I separate bears by sex, females eat 8.6-10.2% while males eat 12.5 - 15.5% ants and moose combined. 
 
 ### Plausability of using 15N as an indicator of protein intake
 
+One of the things to remember is that we d15N doesn't tell us how much of a source a consumer eats (in kg). BUT Swedish bears are very weird. They are mostly consuming berries with ants and moose in the spring supplying protein. There is a big difference in the molecular composition of these two foods when it comes to Nitrogen. all five food sources have a similar percentage of carbon:
 
+```{r, echo=FALSE}
+
+CarbNit <- BearDietSources %>%
+  group_by(Group)%>%
+    summarise(
+      Mean.PrctCarbon=
+        mean(PrctC),
+      SD.PrctCarb=sd(PrctC),
+      Mean.PrctNitro= mean(PrctN),
+      SD.PrctNitro=sd(PrctN)
+  )
+  
+print(CarbNit)
+
+(9.47+14.2)/2
+
+(0.83+0.417+0.64)/3
+
+11.835/0.629
+
+
+```
+
+All five sources are 40 - 45% carbon, but there is a ton of variation in the % Nitrogen. As we would expect, moose are high in Nitrogen, 14% of hair samples are nitrogen, 9% of ants are nitrogen, while berries are less than 1% nitrogen. This means that if a bear consumed 100 kg of moose, they would ingest 14kg of nitrogen, while 100 kg of bilberries would provide .8 kg of nitrogen.
+
+The nitrogen sources in this system have 18 times more nitrogen than the three berry species.
+
+In addition, moose are also unsurprisingly enriched in the heavier nitrogen isotope. Therefore, even though stable isotopes are not a measure of a intake of a certain source, it seems fair to say that when comparing 2 bears, a bear more enriched with d15N was consuming more protein than the other. Or one bear had greater protein intake that the other bear?
 
 ### Topics to cover (Table of contents)
-
-#### Possible explanations

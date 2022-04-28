@@ -1,0 +1,125 @@
+---
+title: "Diet Estimates for Realsies"
+author: "Ashlee Mikkelsen"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+OK. I took the dry run with initial data exploration, TDF and prior calculations using Simmr. Now it's time to do the analysis for real. Use INLA to determine covariates, bring in MixSIAR and run the model for a real long time.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+First I load in my raw data and fix it up
+```{r clean up and load packages, include=FALSE}
+
+# clear workspace and load packages
+rm(list = ls())
+setwd("~/Rprojects/Diet-sensitivty-to-TDFs-and-priors")
+
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(viridis)
+library(tidyverse)
+library(MixSIAR)
+library(INLA)
+
+```
+
+
+
+```{r load data, include=FALSE}
+
+BearDietSources <- read.csv("BearSources20220404.csv")
+# remove 1 extreme outlier 
+BearDietSources <- BearDietSources[-c(12),]
+
+RawBearData_SI <- read_excel("RawBearData_SI_CORT.xlsx", 
+    col_types = c("text", "text", "text", 
+        "text", "text", "text", "text", "text", 
+        "text", "text", "text", "text", "text", 
+        "text", "text", "text", "date", "text", 
+        "text", "text"))
+str(RawBearData_SI)
+warnings()
+
+
+```
+
+
+
+### Data Cleanup
+
+#### Fix bear isotope data
+I need remove the records with missing values and correct the Carbon values for the Suess effect
+
+```{r remove NAs}
+
+bears.si <- subset(RawBearData_SI, N15!="NA")
+bears.si <- subset(bears.si, year.represent!="NA")
+
+bears.si$year.represent <- as.numeric(bears.si$year.represent)
+bears.si$year.sampled <- as.numeric(bears.si$year.sampled)
+bears.si$C13 <- as.numeric(bears.si$C13)
+bears.si$N15 <- as.numeric(bears.si$N15)
+
+LastYr <- max(bears.si$year.represent)
+
+C13.suess <- bears.si$C13-(+0.022*(LastYr-bears.si$year.represent))
+bears.si$C13.suess <- C13.suess
+
+
+```
+
+#### Fix Source Isotopes
+
+Take raw SI data and convert moose hair to moose meat
+```{r, include=FALSE}
+##### First I will correct the moose end-members to represent moose meat and not moose hair
+MooseH2M.N <- function(x,y){
+  y= 0.88*x
+}
+MooseH2M.C <- function(x,y){
+  y= 0.99*x
+}
+GenN <- function(x,y){
+  y=1*x
+}
+GenC <- function(x,y){
+  y=1*x
+}
+MooseMeatN <-rep(0,134)
+MooseMeatC <- rep(0,134)
+RawN <- BearDietSources$d15N
+RawC <- BearDietSources$d13C
+Dsource <- BearDietSources$Group
+DF <- as.data.frame(cbind(Dsource,RawC,RawN,MooseMeatC,MooseMeatN))
+DF$RawC <- as.numeric(DF$RawC)
+DF$RawN <- as.numeric(DF$RawN)
+DF$MooseMeatC <- as.numeric(DF$MooseMeatC)
+DF$MooseMeatN <- as.numeric(DF$MooseMeatN)
+
+for (i in 1:134) {
+  if(DF$Dsource[i]=="Moose"){
+    DF$MooseMeatN[i]=MooseH2M.N(DF$RawN[i])
+  }else{
+    DF$MooseMeatN[i]=GenN(DF$RawN[i])
+  }
+}
+
+for (i in 1:134) {
+  if(DF$Dsource[i]=="Moose"){
+    DF$MooseMeatC[i]=MooseH2M.C(DF$RawC[i])
+  }else{
+    DF$MooseMeatC[i]=GenC(DF$RawC[i])
+  }
+}
+
+BearDietSources$d13C.C <- DF$MooseMeatC
+BearDietSources$d15N.C <- DF$MooseMeatN
+
+``` 

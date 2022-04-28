@@ -26,7 +26,7 @@ BearDietSources <- read.csv("BearSources20220404.csv")
 ```{r, include=FALSE}
 ##### First I will correct the moose end-members to represent moose meat and not moose hair
 MooseH2M.N <- function(x,y){
-  y= 0.87*x
+  y= 0.88*x
 }
 MooseH2M.C <- function(x,y){
   y= 0.99*x
@@ -179,7 +179,7 @@ plot(bearsimmr_TDF_Mikkelsen)
 ```
 
 ## Model with uninformitive priors
-To compare the effect of adding informitive priors, I first ran a model with uninformitive priors. For this mosel I used the trophic discrimination factors that I derived using Hilerbrand et al. (1996), Felicetti et al. (2003), and Rode et al. (2016). The input for this model is the same used in determining groups and in comparing different trophic discrimination factors.
+To compare the effect of adding informitive priors, I first ran a model with uninformitive priors. For this model I used the trophic discrimination factors that I derived using Hilerbrand et al. (1996), Felicetti et al. (2003), and Rode et al. (2016). The input for this model is the same used in determining groups and in comparing different trophic discrimination factors.
 
 ```{r run Simmr uninformitive priors, include=FALSE}
 

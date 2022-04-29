@@ -27,6 +27,13 @@ library(viridis)
 library(tidyverse)
 library(MixSIAR)
 library(INLA)
+library(lattice)
+library(nlme)  
+library(plyr)
+library(tidyr)
+library(GGally)
+library(mgcv)
+library(brinla)
 
 ```
 
@@ -47,11 +54,15 @@ RawBearData_SI <- read_excel("RawBearData_SI_CORT.xlsx",
 str(RawBearData_SI)
 warnings()
 
+colSums(is.na(BearDietSources))
+colSums(is.na(bears.si))
+
 
 ```
 
 
 
+## Initial linear Analysis
 ### Data Cleanup
 
 #### Fix bear isotope data
@@ -123,3 +134,315 @@ BearDietSources$d13C.C <- DF$MooseMeatC
 BearDietSources$d15N.C <- DF$MooseMeatN
 
 ``` 
+
+
+### Data exploration
+
+#### Sample Sizes
+```{r}
+
+table(bears.si$year.represent)
+# 1992, 1993, and 2014 are problematic. I will remove 1992 & 1993, but leave 2014.
+bears.si <- subset(bears.si, year.represent>1994)
+
+table(bears.si$sex)
+# Good balance of sexes, but I don't know what that NA is doing in there
+bears.si <- subset(bears.si, sex!="NA")
+
+table(bears.si$reprostatus.represent)
+bears.si <- subset(bears.si, reprostatus.represent!="NA")
+
+
+```
+
+
+#### Outliers
+```{r}
+
+# Year is my only continuous variable
+myvar <-as.matrix(cbind(bears.si[,5],bears.si[,13], bears.si[,21]))
+dotchart(myvar)
+
+dotchart(myvar[,1])
+dotchart(myvar[,2])
+dotchart(myvar[,3])
+
+# No outliers to be concerned with
+
+```
+
+
+#### Relationships
+
+```{r}
+
+# carbon and Nitrogen
+ggplot(data = bears.si, aes(C13.suess, N15))+
+  geom_point()+
+  geom_smooth()+
+  theme_classic()
+
+# year and Nitrogen
+ggplot(data = bears.si, aes(year.represent, N15))+
+  geom_point()+
+  geom_smooth()+
+  theme_classic()
+# Well that is interesting... Do we see it in 13C?
+
+#year and carbon
+ggplot(data = bears.si, aes(year.represent, C13.suess))+
+  geom_point()+
+  geom_smooth()+
+  theme_classic()
+#different patter, but not a random distribution, a lot of annual variation in both of these. This will likely be an important random effect.
+
+
+# sex and Nitrogen
+ggplot(data = bears.si, aes(sex, N15))+
+  geom_boxplot()+
+  theme_classic()
+
+#sex and carbon
+ggplot(data = bears.si, aes(sex, C13.suess))+
+  geom_boxplot()+
+  theme_classic()
+
+#reproduvtive status and Nitrogen
+ggplot(data = bears.si, aes(reprostatus.represent, N15))+
+  geom_boxplot()+
+  theme_classic()
+
+#reproduvtive status and carbon
+ggplot(data = bears.si, aes(reprostatus.represent, C13.suess))+
+  geom_boxplot()+
+  theme_classic()
+bears.si$fYR <- as.factor(bears.si$year.represent)
+```
+
+
+
+### INLA regression models
+
+```{r}
+
+
+C <- lm(C13.suess~1, data = bears.si)
+summary(C)$sigma
+priorpcC <- list(prec = list(prior = "pc.prec", param = c(0.35, 0.01)))
+
+N <- lm(N15~1, data = bears.si)
+summary(N)$sigma
+priorpcN <- list(prec = list(prior = "pc.prec", param = c(0.70, 0.01)))
+
+mCarbonrepro <- inla(C13.suess~reprostatus.represent+
+                      f(BearID, model = "iid", hyper = priorpcC),
+                    data = bears.si,
+                    control.compute = list(dic = TRUE, waic = TRUE),
+                    control.predictor = list(compute = TRUE),
+                    quantiles = c(0.025, 0.975),
+                    control.family = list(hyper = priorpcC)
+                    )
+mCarbonsex <- inla(C13.suess~sex+
+                      f(BearID, model = "iid", hyper = priorpcC),
+                    data = bears.si,
+                    control.compute = list(dic = TRUE, waic = TRUE),
+                    control.predictor = list(compute = TRUE),
+                    quantiles = c(0.025, 0.975),
+                    control.family = list(hyper = priorpcC)
+                    )
+summary(mCarbonrepro)
+summary(mCarbonsex)
+
+mNrepro <- inla(N15~reprostatus.represent+
+                      f(BearID, model = "iid", hyper = priorpcN),
+                    data = bears.si,
+                    control.compute = list(dic = TRUE, waic = TRUE),
+                    control.predictor = list(compute = TRUE),
+                    quantiles = c(0.025, 0.975),
+                    control.family = list(hyper = priorpcN)
+                    )
+mNsex <- inla(N15~sex+
+                      f(BearID, model = "iid", hyper = priorpcN),
+                    data = bears.si,
+                    control.compute = list(dic = TRUE, waic = TRUE),
+                    control.predictor = list(compute = TRUE),
+                    quantiles = c(0.025, 0.975),
+                    control.family = list(hyper = priorpcN)
+                    )
+summary(mNrepro)
+summary(mNsex)
+
+# So including repro status way out-performed sex. Therefore repro status should be included in the diet models
+
+# Now to check year as continuous or factor
+
+mCyear <- inla(C13.suess~reprostatus.represent+year.represent+
+                      f(BearID, model = "iid", hyper = priorpcC),
+                    data = bears.si,
+                    control.compute = list(dic = TRUE, waic = TRUE),
+                    control.predictor = list(compute = TRUE),
+                    quantiles = c(0.025, 0.975),
+                    control.family = list(hyper = priorpcC)
+                    )
+mCfYR <- inla(C13.suess~reprostatus.represent+fYR+
+                      f(BearID, model = "iid", hyper = priorpcC),
+                    data = bears.si,
+                    control.compute = list(dic = TRUE, waic = TRUE),
+                    control.predictor = list(compute = TRUE),
+                    quantiles = c(0.025, 0.975),
+                    control.family = list(hyper = priorpcC)
+                    )
+summary(mCyear)
+summary(mCfYR)
+
+mNyear <- inla(N15~reprostatus.represent+year.represent+
+                      f(BearID, model = "iid", hyper = priorpcN),
+                    data = bears.si,
+                    control.compute = list(dic = TRUE, waic = TRUE),
+                    control.predictor = list(compute = TRUE),
+                    quantiles = c(0.025, 0.975),
+                    control.family = list(hyper = priorpc)
+                    )
+mNfYR <- inla(N15~sex+fYR+
+                      f(BearID, model = "iid", hyper = priorpcN),
+                    data = bears.si,
+                    control.compute = list(dic = TRUE, waic = TRUE),
+                    control.predictor = list(compute = TRUE),
+                    quantiles = c(0.025, 0.975),
+                    control.family = list(hyper = priorpcN)
+                    )
+summary(mNyear)
+summary(mNfYR)
+
+# Ok, so using year as a factor way out-perfoms a continuous variable. So these two are the winners.
+
+```
+
+
+
+### Model Validation
+
+#### Plot residuals versus fitted values
+```{r}
+
+
+head(mCfYR$summary.fitted.values)
+
+F1 <- mCfYR$summary.fitted.values[,"mean"]
+E1 <- bears.si$C13.suess-F1
+
+df <- as.data.frame(cbind(F1,E1))
+
+ggplot(aes(F1,E1), data = df)+
+  geom_point()+
+  geom_hline(yintercept = 0)+
+  geom_smooth()+
+  ylab("Residuals")+
+  xlab("Posterior mean fitted 13C values")+
+  theme_classic()
+# This looks like we have a slight increase in variation in the residuals of the carbon values. The higher Carbon values would be bears eating the lingonberries..
+
+
+head(mNfYR$summary.fitted.values)
+
+F2 <- mNfYR$summary.fitted.values[,"mean"]
+E2 <- bears.si$N15-F2
+
+df2 <- as.data.frame(cbind(F2,E2))
+
+ggplot(aes(F2,E2), data = df)+
+  geom_point()+
+  geom_hline(yintercept = 0)+
+  geom_smooth()+
+  ylab("Residuals")+
+  xlab("Posterior mean fitted 15N values")+
+  theme_classic()
+# OOF. It looks like there is also something wacky and similar to the Carbon happening in the Nitrogen as well 
+
+
+```
+
+
+#### Plot residuals versus each covariate in the model
+
+```{r}
+
+# Carbon by repro status and fYR
+boxplot(E1~fYR, data = bears.si)
+abline(h=0)
+
+boxplot(E1~reprostatus.represent, data = bears.si)
+abline(h=0)
+
+
+# Nitrogen by repro status and fYR
+boxplot(E2~fYR, data = bears.si)
+abline(h=0)
+
+boxplot(E2~reprostatus.represent, data = bears.si)
+abline(h=0)
+
+
+```
+
+
+#### Estimating effect size (importance)
+
+```{r}
+
+
+Beta1 <- mCfYR$summary.fixed[, c("mean",
+                              "0.025quant",  
+                              "0.975quant")] 
+round(Beta1, digits = 3)
+
+summary(mCarbonrepro)
+summary(mCfYR)
+
+
+Beta2 <- mNfYR$summary.fixed[, c("mean",
+                              "0.025quant",  
+                              "0.975quant")] 
+round(Beta2, digits = 3)
+
+summary(mNrepro)
+summary(mNfYR)
+
+
+```
+
+#### Summary
+
+There is a pretty strong year effect on both 13C and 15N. If MixSIAR can handle 2 random effects, year needs to be included. Otherwise I can nest reproductive status within year.
+
+
+## Bayesian Mixing Model Anlaysis
+
+#### Environment cleanup
+
+I am now going to transition to estimating dietary proportions in MixSIAR using the covariates as determined above. To begin, I clear my R environment except for the data files.
+
+
+```{r}
+
+rm(list = setdiff(ls(), c("BearDietSources", "bears.si")))
+
+library(MixSIAR)
+
+```
+
+#### Load Mixture data
+
+```{r}
+
+
+
+
+
+
+```
+
+
+
+
+

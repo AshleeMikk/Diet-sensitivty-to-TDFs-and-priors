@@ -420,7 +420,17 @@ There is a pretty strong year effect on both 13C and 15N. If MixSIAR can handle 
 
 #### Environment cleanup
 
-I am now going to transition to estimating dietary proportions in MixSIAR using the covariates as determined above. To begin, I clear my R environment except for the data files.
+I am now going to transition to estimating dietary proportions in MixSIAR using the covariates as determined above. To begin, I need to save my files and format them in a .csv identicle to the examples in the MixSIAR package to ensure they are useable to MixSIAR. Then I clear my R environment and load the data files.
+
+```{r}
+
+write.csv(bears.si,"BearIsotopes_Processed.csv")
+write.csv(BearDietSources,"BearDieatSources_Cleaned.csv")
+
+```
+
+NOTE: In excel I removed all columns but those pertinent to the analysis: C13.Suess, N15, BearID, Reprostatus.represent, and year. represent. I renamed the isotope columns to match the MixSIAR standard. I also converted my covariates into categorical covariates with a dummy variable of numbers for each category. For example, repro.status recame repro where SolitaryF=1, SolitaryM=2,WithCubs=3, and WithMother=4. Year.represent was renamed yr with 1995=1 through 2015=20. BearID was changed to b1 through b378.
+
 
 
 ```{r}
@@ -428,16 +438,52 @@ I am now going to transition to estimating dietary proportions in MixSIAR using 
 rm(list = setdiff(ls(), c("BearDietSources", "bears.si")))
 
 library(MixSIAR)
+library(dplyr)
 
 ```
 
-#### Load Mixture data
+Calculate TDFs
+
 
 ```{r}
 
+bearsourcres_species <-BearDietSources %>%
+  group_by(Group)%>%
+  summarise(
+    n=n(),
+    mean13C= mean(d13C.C),
+    mean15N=mean(d15N.C),
+    sd13C=sd(d13C.C),
+    sd15N=sd(d15N.C),
+    mean13Cconc=mean(PrctC),
+    mean15Nconc=mean(PrctN)
+  )
+bears_species_names <- c("Ants","Bilberry","Crowberry","Lingonberry","Moose")
+bears_species_means <- bearsourcres_species[,2:3]
+bears_species_sds <- bearsourcres_species[,4:5]
+bear_species_conc <- (bearsourcres_species[,6:7])/100
+bear_speciesc_sds <- matrix(rep(1,10), ncol = 2, nrow = 5)
 
 
+Mikkelsen13C <- function(x,y){
+  y=-10.6+(0.42*x)
+}
 
+Mikkelsen15N <- function(x,y){
+  y=5.02+(0.90*x)
+}
+
+# I use these linear equations to predict the isotopic signature of a brown bear eating 100% of a diet source (y) given the mean isotopic signature of that source (x)
+
+
+d13C.Mikkelsen <- Mikkelsen13C(bears_species_means$mean13C)
+print(d13C.Mikkelsen)
+
+# The actual TDF is the difference between our predicted isotopic signature for a bear eating 100% of that source and the mean isotopic signature for that source
+C13TDF.Mikkelsen <-abs(d13C.Mikkelsen-bears_species_means$mean13C)
+
+# Here are the TDFs for Carbon for ants, bilberries, crowberries, lingonberries, and moose
+print(C13TDF.Mikkelsen)
 
 
 ```

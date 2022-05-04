@@ -55,8 +55,6 @@ str(RawBearData_SI)
 warnings()
 
 colSums(is.na(BearDietSources))
-colSums(is.na(bears.si))
-
 
 ```
 
@@ -83,6 +81,7 @@ LastYr <- max(bears.si$year.represent)
 C13.suess <- bears.si$C13-(+0.022*(LastYr-bears.si$year.represent))
 bears.si$C13.suess <- C13.suess
 
+colSums(is.na(BearDietSources))
 
 ```
 
@@ -431,62 +430,6 @@ write.csv(BearDietSources,"BearDieatSources_Cleaned.csv")
 
 NOTE: In excel I removed all columns but those pertinent to the analysis: C13.Suess, N15, BearID, Reprostatus.represent, and year. represent. I renamed the isotope columns to match the MixSIAR standard. I also converted my covariates into categorical covariates with a dummy variable of numbers for each category. For example, repro.status recame repro where SolitaryF=1, SolitaryM=2,WithCubs=3, and WithMother=4. Year.represent was renamed yr with 1995=1 through 2015=20. BearID was changed to b1 through b378.
 
-
-
-```{r}
-
-rm(list = setdiff(ls(), c("BearDietSources", "bears.si")))
-
-library(MixSIAR)
-library(dplyr)
-
-```
-
-Calculate TDFs
-
-
-```{r}
-
-bearsourcres_species <-BearDietSources %>%
-  group_by(Group)%>%
-  summarise(
-    n=n(),
-    mean13C= mean(d13C.C),
-    mean15N=mean(d15N.C),
-    sd13C=sd(d13C.C),
-    sd15N=sd(d15N.C),
-    mean13Cconc=mean(PrctC),
-    mean15Nconc=mean(PrctN)
-  )
-bears_species_names <- c("Ants","Bilberry","Crowberry","Lingonberry","Moose")
-bears_species_means <- bearsourcres_species[,2:3]
-bears_species_sds <- bearsourcres_species[,4:5]
-bear_species_conc <- (bearsourcres_species[,6:7])/100
-bear_speciesc_sds <- matrix(rep(1,10), ncol = 2, nrow = 5)
-
-
-Mikkelsen13C <- function(x,y){
-  y=-10.6+(0.42*x)
-}
-
-Mikkelsen15N <- function(x,y){
-  y=5.02+(0.90*x)
-}
-
-# I use these linear equations to predict the isotopic signature of a brown bear eating 100% of a diet source (y) given the mean isotopic signature of that source (x)
-
-
-d13C.Mikkelsen <- Mikkelsen13C(bears_species_means$mean13C)
-print(d13C.Mikkelsen)
-
-# The actual TDF is the difference between our predicted isotopic signature for a bear eating 100% of that source and the mean isotopic signature for that source
-C13TDF.Mikkelsen <-abs(d13C.Mikkelsen-bears_species_means$mean13C)
-
-# Here are the TDFs for Carbon for ants, bilberries, crowberries, lingonberries, and moose
-print(C13TDF.Mikkelsen)
-
-
-```
 
 
 

@@ -18,7 +18,10 @@ library(dplyr)
 
 ### Load Data
 
-Load in my data of stable isotopes only (no coefficients) as per the MixSIAR package to obtain the global diet estimates
+Load in my data of stable isotopes only (no coefficients) as per the MixSIAR package to obtain the global diet estimates.
+
+NOTE: In excel I removed all columns but those pertinent to the analysis: C13.Suess, N15, BearID, Reprostatus.represent, and year. represent. I renamed the isotope columns to match the MixSIAR standard. I also converted my covariates into categorical covariates with a dummy variable of numbers for each category. For example, repro.status recame repro where SolitaryF=1, SolitaryM=2,WithCubs=3, and WithMother=4. Year.represent was renamed yr with 1995=1 through 2015=20. BearID was changed to b1 through b378.
+
 
 ```{r load in data}
 
@@ -113,21 +116,21 @@ Look at JAGS output
 ```{r}
 ?output_JAGS
 output_options <- list(summary_save = TRUE,
-                       summary_name = "summary_statistics.global",
+                       summary_name = "summary_statistics_bears.repro.annual",
                        sup_post = FALSE,
                        plot_post_save_pdf = TRUE,
-                       plot_post_name = "posterior_density.global",
+                       plot_post_name = "posterior_density_bears.repro.annual",
                        sup_pairs = FALSE,
                        plot_pairs_save_pdf = TRUE,
-                       plot_pairs_name = "pairs_plot.global",
+                       plot_pairs_name = "pairs_plot_bears.repro.annual",
                        sup_xy = TRUE,
                        plot_xy_save_pdf = FALSE,
-                       plot_xy_name = "xy_plot.global",
+                       plot_xy_name = "xy_plot_bears.repro.annual",
                        gelman = TRUE,
                        heidel = FALSE,
                        geweke = TRUE,
                        diag_save = TRUE,
-                       diag_name = "diagnostics.global",
+                       diag_name = "diagnostics_bears.repro.annual",
                        indiv_effect = FALSE,
                        plot_post_save_png = FALSE,
                        plot_pairs_save_png = FALSE,
@@ -141,6 +144,11 @@ output_JAGS(GlobalBear.MixSIAR.normal,mix.global, source, output_options)
 
 
 
+```{r}
+save.image(file="bears.global")
+
+
+```
 
 
 

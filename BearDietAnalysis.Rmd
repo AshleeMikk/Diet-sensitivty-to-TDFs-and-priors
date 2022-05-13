@@ -35,6 +35,8 @@ library(GGally)
 library(mgcv)
 library(brinla)
 
+??inla.doc
+
 ```
 
 

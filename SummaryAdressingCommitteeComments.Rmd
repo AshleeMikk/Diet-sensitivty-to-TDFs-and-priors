@@ -25,7 +25,7 @@ library(MuMIn)
 ```{r, include=FALSE}
 ##### Load in necessary data
 Mixture.RAW <- read.csv("RawBearData_SI_CORT.csv")
-BearDietSources <- read.csv("BearSources20220404.csv")
+BearDietSources <- read.csv("BearDietSources_cleaned.csv")
 
 
 # remove 1 extreme outlier 
@@ -35,7 +35,7 @@ BearDietSources <- BearDietSources[-c(12),]
 
 ##### Take raw SI data and convert moose hair to moose meat and correct for Suess
 
-```{r, include=FALSE}
+### Data Cleanup has already been completed on the loaded file
 ##### First I will correct the moose end-members to represent moose meat and not moose hair
 MooseH2M.N <- function(x,y){
   y= 0.88*x
@@ -79,7 +79,7 @@ for (i in 1:134) {
 BearDietSources$d13C.C <- DF$MooseMeatC
 BearDietSources$d15N.C <- DF$MooseMeatN
 
-```
+
 
 
 
@@ -183,8 +183,8 @@ colnames(fem.mix) = c('d13C','d15N')
 
 male.mix <- cbind(bear.male$C13.suess,bear.male$N15)
 colnames(male.mix) = c('d13C','d15N')
-
-bears_3 <-BearDietSources %>%
+### We decided as a group to leave the 5 sources distinct
+#bears_3 <-BearDietSources %>%
   group_by(Source3)%>%
   summarise(
     mean13C= mean(d13C.C),
@@ -194,11 +194,11 @@ bears_3 <-BearDietSources %>%
     mean13Cconc=mean(PrctC),
     mean15Nconc=mean(PrctN)
   )
-bears_3_SourceNames <- c("AntMoose","Bilberry","CrowLingon")
-bears_3_SourceMeans <- bears_3[,2:3]
-bears_3_SourceSD <- bears_3[,4:5]
-bears_3_ConcMeans <- (bears_3[,6:7])/100
-bears_3_ConcSD <- matrix(rep(1,6), ncol = 2, nrow = 3)
+#bears_3_SourceNames <- c("AntMoose","Bilberry","CrowLingon")
+#bears_3_SourceMeans <- bears_3[,2:3]
+#bears_3_SourceSD <- bears_3[,4:5]
+#bears_3_ConcMeans <- (bears_3[,6:7])/100
+#bears_3_ConcSD <- matrix(rep(1,6), ncol = 2, nrow = 3)
 
 
 ```
@@ -224,7 +224,6 @@ Anne mentioned gramoniods and as Nuria replied, we do not have graminoid samples
 Below is the mixing space created when I group my sources into three end members, one of ants and moose combined, bilberry, and crow and lingonberries. After combining sources into the end-members, I recalculated a trophic discrimination factor for my new end-members. Those six trophic discrimination factors are in the table below.
 
 ```{r, echo=FALSE, eval=FALSE}
-
 d13C.Mikkelsen <- function(x,y){
   y=-10.6+(0.42*x)
 }
@@ -232,7 +231,13 @@ d13C.Mikkelsen <- function(x,y){
 d15N.Mikkelsen <- function(x,y){
   y=5.02+(0.90*x)
 }
+```
 
+
+
+
+
+This code has been blocked out because we chose not to do three sources
 C13.Mikkelsen.3 <- d13C.Mikkelsen(bears_3$mean13C)
 C13TDF.Mikkelsen.3 <-abs(C13.Mikkelsen.3-bears_3$mean13C)
 N15.Mikkelsen.3 <- d15N.Mikkelsen(bears_3$mean15N)
@@ -272,33 +277,7 @@ bearsimmr_3sources.male = simmr_load(mixtures=male.mix,
 
 plot(bearsimmr_3sources.male)
 
-
-C13.Mikkelsen <- d13C.Mikkelsen(bears_species_means$mean13C)
-print(C13.Mikkelsen)
-C13TDF.Mikkelsen <-abs(C13.Mikkelsen-bears_species_means$mean13C)
-print(C13TDF.Mikkelsen)
-
-N15.Mikkelsen <- d15N.Mikkelsen(bears_species_means$mean15N)
-print(N15.Mikkelsen)
-N15TDF.Mikkelsen <-N15.Mikkelsen-bears_species_means$mean15N
-print(N15TDF.Mikkelsen)
-print(bears_species_means$mean15N)
-
-
-bear_speciesTDF_means <- cbind(C13TDF.Mikkelsen,N15TDF.Mikkelsen)
-
-
-
-```
-
-#### Now that we have determined that our data does fall within our mixing space, we will run our model
-
-```{r, eval=FALSE}
-
-
-##### Taking data and turning it into a form usable by  the Simmr package
-bearmix <- cbind(bear.si$C13.suess,bear.si$N15)
-colnames(bearmix) = c('d13C','d15N')
+```{r}
 
 bearsourcres_species <-BearDietSources %>%
   group_by(Group)%>%
@@ -316,7 +295,6 @@ bears_species_sds <- bearsourcres_species[,4:5]
 bear_species_conc <- (bearsourcres_species[,6:7])/100
 bear_speciesc_sds <- matrix(rep(1,10), ncol = 2, nrow = 5)
 
-
 C13.Mikkelsen <- d13C.Mikkelsen(bears_species_means$mean13C)
 print(C13.Mikkelsen)
 C13TDF.Mikkelsen <-abs(C13.Mikkelsen-bears_species_means$mean13C)
@@ -328,20 +306,11 @@ N15TDF.Mikkelsen <-N15.Mikkelsen-bears_species_means$mean15N
 print(N15TDF.Mikkelsen)
 print(bears_species_means$mean15N)
 
-bearsourcres_species <-BearDietSources %>%
-  group_by(Group)%>%
-  summarise(
-    mean13C= mean(d13C.C),
-    mean15N=mean(d15N.C),
-    sd13C=sd(d13C.C),
-    sd15N=sd(d15N.C),
-    mean13Cconc=mean(PrctC),
-    mean15Nconc=mean(PrctN)
-  )
 
+bear_speciesTDF_means <- cbind(C13TDF.Mikkelsen,N15TDF.Mikkelsen)
+print(bear_speciesTDF_means)
 
-
-bearsimmr_baseline = simmr_load(mixtures=bearmix,
+bearsimmr_species = simmr_load(mixtures=bearmix,
                      source_names=bears_species_names,
                      source_means=bears_species_means,
                      source_sds=bears_species_sds,
@@ -349,46 +318,24 @@ bearsimmr_baseline = simmr_load(mixtures=bearmix,
                      correction_sds=bear_speciesc_sds,
                      concentration_means = bear_species_conc)
 
+plot(bearsimmr_species)
+
+
 ```
 
+#### Now that we have determined that our data does fall within our mixing space, we will run our model
 
 
-
-
-
-
-
-```{r, eval=FALSE}
+```{r}
 
 bearsimmr_5sources.out=simmr_mcmc(
-  bearsimmr_baseline,
+  bearsimmr_species,
   mcmc_control = list(
     iter= 70000, burn=5000, thin=50, n.chain=4
     )
   )
 
-
-bearsimmr_3sources.out = simmr_mcmc(
-  bearsimmr_3sources,
-  mcmc_control = list(
-    iter= 70000, burn=5000, thin=50, n.chain=4
-    )
-  )
-
-bearsimmr_3sources.fem.out = simmr_mcmc(
-  bearsimmr_3sources.fem,
-  mcmc_control = list(
-    iter= 70000, burn=5000, thin=50, n.chain=4
-    )
-  )
-
-
-bearsimmr_3sources.male.out = simmr_mcmc(
-  bearsimmr_3sources.male,
-  mcmc_control = list(
-    iter= 70000, burn=5000, thin=50, n.chain=4
-    )
-  )
+# Took 23 minutes
 
 ```
 
@@ -412,7 +359,7 @@ plot(bearsimmr_5sources.out)
 
 
 
-```{r, include=FALSE}
+```{r, eval=FALSE}
 summary(bearsimmr_3sources.out, type = "diagnostics")
 # Gelman diagnostics are all equal to one, indicating that our model has converged
 
@@ -424,7 +371,7 @@ summary(bearsimmr_3sources.out,'quantiles')
 ```
 
 
-```{r}
+```{r, eval=FALSE}
 summary(bearsimmr_3sources.fem.out, type = "diagnostics")
 # Gelman diagnostics are all equal to one, indicating that our model has converged
 
@@ -436,7 +383,7 @@ summary(bearsimmr_3sources.fem.out,'quantiles')
 
 
 
-```{r}
+```{r, eval=FALSE}
 
 summary(bearsimmr_3sources.male.out, type = "diagnostics")
 # Gelman diagnostics are all equal to one, indicating that our model has converged
@@ -452,7 +399,7 @@ summary(bearsimmr_3sources.male.out,'quantiles')
 
 
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, eval=FALSE}
 ThreeSourceDietEstimates <- matrix(
     c("Ant/moose","Bilberry","Crow/lingon",0.104,0.523,0.309,0.004,0.014,0.015,0.104,0.523,0.309,0.118,0.579,0.367),
     ncol = 5,nrow = 3)
@@ -508,15 +455,18 @@ library(viridis)
 
 #Test <- as.data.frame(bearsimmr_5sources.out$output$`1`$BUGSoutput$sims.list$p)
 
-Source.3_full <- as.data.frame(bearsimmr_3sources.out$output$`1`$BUGSoutput$sims.list$p)
+#Source.3_full <- as.data.frame(bearsimmr_3sources.out$output$`1`$BUGSoutput$sims.list$p)
 write.csv(Source.3_full,"BrownBearDiet3Source.csv" )
 Test2 <-  read.csv("BrownBearDiet3Source.csv")
 
-write.csv(Test,"BrownBearDiet5Source.csv")
-#Test <- read.csv("BrownBearDiet5Source.csv", header = TRUE)
+#write.csv(Test,"BrownBearDiet5Source.csv")
+Test <- read.csv("BrownBearDiet5Source.csv", header = TRUE)
 
 P <- palette(viridis(6))
 
+pAnts <- mean(Test$Ants)
+
+tiff("SimmrDietEstimates.tiff", units = "in", width = 9, height = 5, res = 500)
 ggplot(data = Test)+
   geom_density(aes(Ants), fill=P[1], alpha=0.3, color=P[1], lwd=1)+
   geom_density(aes(Bilberry), fill=P[2], alpha=0.3, color=P[2], lwd=1)+
@@ -524,22 +474,24 @@ ggplot(data = Test)+
   geom_density(aes(Lingonberry), fill=P[4], alpha=0.3, color=P[4], lwd=1)+
   geom_density(aes(Moose), fill=P[5], alpha=0.4, color=P[5], lwd=1)+
   theme_classic()+
-  theme(axis.text = element_text(size=18, face="bold"),
-        axis.title = element_text(size = 20, face = "bold"),
+  theme(axis.text = element_text(size=14, face="bold"),
+        axis.title = element_blank(),
         axis.line = element_line(size=1.2),
-        title = element_text(size = 18, face = "bold"))+
+        title = element_text(size = 16, face = "bold"))+
   xlab("Estimated Proportion of Diet")+
   ylab("Density")+
   scale_y_continuous(expand = c(0,0))+
-  scale_x_continuous(expand = c(0,0))+
-  geom_text(label="Moose", x=0.064, y=120, size=8)+
-  geom_text(label="Ants", x=0.084, y=80, size=8)+
-  geom_text(label="Crowberry", x=0.143, y=22, size=8)+
-  geom_text(label="Lingonberry", x=0.27, y=22, size=8)+
-  geom_text(label="Bilberry", x=0.475, y=22, size=8)+
-  ggtitle("Posterior Distributions of Brown Bear Dietary Estimates With 5 Sources")
+  scale_x_continuous(expand = c(0,0), 
+                     breaks = seq(0,1,0.05))+
+  geom_text(label="Moose", x=0.08, y=120, size=7)+
+  geom_text(label="Ants", x=0.09, y=80, size=7)+
+  geom_text(label="Crowberry", x=0.143, y=24.5, size=7)+
+  geom_text(label="Lingonberry", x=0.27, y=24.5, size=7)+
+  geom_text(label="Bilberry", x=0.48, y=24.5, size=7)
+dev.off()
 
-P2 <- palette(viridis(4))
+
+#P2 <- palette(viridis(4))
 ggplot(data = Test2)+
   geom_density(aes(AntMoose), fill=P2[1], alpha=0.3, color=P2[1], lwd=1)+
   geom_density(aes(Bilberry), fill=P2[2], alpha=0.3, color=P2[2], lwd=1)+
@@ -559,7 +511,7 @@ ggplot(data = Test2)+
   ggtitle("Posterior Distributions of Brown Bear Dietary Estimates With 3 Sources")
 
 
-P3 <- palette(viridis(3))
+#P3 <- palette(viridis(3))
 ggplot(data = Test3)+
   geom_density(aes(AntMoose), fill=P3[1], alpha=0.3, color=P3[1], lwd=1)+
   geom_density(aes(AllBerry), fill=P3[2], alpha=0.3, color=P3[2], lwd=1)+
@@ -574,7 +526,7 @@ ggplot(data = Test3)+
   scale_x_continuous(expand = c(0,0))+
   geom_text(label="Ants & Moose", x=0.18, y=100, size=8)+
   geom_text(label="All 3 Berries", x=0.83, y=100, size=8)+
-  ggtitle("Posterior Distributions of Brown Bear Dietary Estimates With 2 Sources")
+  ggtitle("Posterior Distributions of Brown Bear Diet Estimates With 2 Sources")
 
 
 
@@ -622,6 +574,7 @@ print(CarbNit)
 (0.83+0.417+0.64)/3
 
 11.835/0.629
+
 
 
 ```

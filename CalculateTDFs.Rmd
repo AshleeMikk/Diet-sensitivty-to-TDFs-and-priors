@@ -1,0 +1,98 @@
+---
+title: "Calculate TDFs"
+author: "Ashlee Mikkelsen"
+date: '2022-03-21'
+output: word_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+
+```{r, include=FALSE}
+rm(list = ls())
+
+library(simmr)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(viridis)
+
+
+```
+
+
+
+
+```{r, include=FALSE}
+##### Load in necessary data
+setwd("~/Rprojects/Diet-sensitivty-to-TDFs-and-priors")
+
+Mixture.RAW <- read.csv("RawBearData_SI_CORT.csv")
+BearDietSources <- read.csv("BearDieatSources_Cleaned.csv")
+```
+
+
+
+```{r, include=FALSE}
+
+bearmix <- cbind(bear.si$C13.suess,bear.si$N15)
+colnames(bearmix) = c('d13C','d15N')
+
+bearsourcres_species <-BearDietSources %>%
+  group_by(Group)%>%
+  summarise(
+    mean13C= mean(d13C.C),
+    mean15N=mean(d15N.C),
+    sd13C=sd(d13C.C),
+    sd15N=sd(d15N.C),
+    mean13Cconc=mean(PrctC),
+    mean15Nconc=mean(PrctN)
+  )
+bears_species_names <- c("Ants","Bilberry","Crowberry","Lingonberry","Moose")
+bears_species_means <- bearsourcres_species[,2:3]
+bears_species_sds <- bearsourcres_species[,4:5]
+bear_species_conc <- (bearsourcres_species[,6:7])/100
+bear_speciesc_sds <- matrix(rep(1,10), ncol = 2, nrow = 5)
+
+```
+
+
+```{r}
+
+Mikkelsen13C <- function(x,y){
+  y=-10.6+(0.42*x)
+}
+
+Mikkelsen15N <- function(x,y){
+  y=5.02+(0.90*x)
+}
+
+
+
+
+d13C.Mikkelsen <- Mikkelsen13C(bears_species_means$mean13C)
+print(d13C.Mikkelsen)
+
+# The actual TDF is the difference between our predicted isotopic signature for a bear eating 100% of that source and the mean isotopic signature for that source
+C13TDF.Mikkelsen <-abs(d13C.Mikkelsen-bears_species_means$mean13C)
+
+# Here are the TDFs for Carbon for ants, bilberries, crowberries, lingonberries, and moose
+print(C13TDF.Mikkelsen)
+
+# Now we repeat the process for Nitrogen
+
+d15N.Mikkelsen <- Mikkelsen15N(bears_species_means$mean15N)
+print(d15N.Mikkelsen)
+N15TDF.Mikkelsen <-d15N.Mikkelsen-bears_species_means$mean15N
+
+# And here we have the TDFs for Nitrogen for ants, bilberries, crowberry, lingonberry, and moose
+print(N15TDF.Mikkelsen)
+
+```
+

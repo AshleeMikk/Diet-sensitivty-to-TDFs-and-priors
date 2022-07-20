@@ -17,7 +17,7 @@ knitr::opts_chunk$set(echo = TRUE)
 setwd("~/Rprojects/Diet-sensitivty-to-TDFs-and-priors")
 
 Mixture.RAW <- read.csv("RawBearData_SI_CORT.csv")
-BearDietSources <- read.csv("BearSources20220404.csv")
+BearDietSources <- read.csv("BearDietSources_Cleaned.csv")
 ```
 
 
@@ -37,8 +37,8 @@ GenN <- function(x,y){
 GenC <- function(x,y){
   y=1*x
 }
-MooseMeatN <-rep(0,135)
-MooseMeatC <- rep(0,135)
+MooseMeatN <-rep(0,133)
+MooseMeatC <- rep(0,133)
 RawN <- BearDietSources$d15N
 RawC <- BearDietSources$d13C
 Dsource <- BearDietSources$Group
@@ -48,7 +48,7 @@ DF$RawN <- as.numeric(DF$RawN)
 DF$MooseMeatC <- as.numeric(DF$MooseMeatC)
 DF$MooseMeatN <- as.numeric(DF$MooseMeatN)
 
-for (i in 1:135) {
+for (i in 1:133) {
   if(DF$Dsource[i]=="Moose"){
     DF$MooseMeatN[i]=MooseH2M.N(DF$RawN[i])
   }else{
@@ -56,7 +56,7 @@ for (i in 1:135) {
   }
 }
 
-for (i in 1:135) {
+for (i in 1:133) {
   if(DF$Dsource[i]=="Moose"){
     DF$MooseMeatC[i]=MooseH2M.C(DF$RawC[i])
   }else{
@@ -109,11 +109,12 @@ bearsourcres_species <-BearDietSources %>%
     mean13Cconc=mean(PrctC),
     mean15Nconc=mean(PrctN)
   )
-bears_species_names <- c("Ants","Bilberry","Crowberry","Lingonberry","Moose")
+bears_species_names <- matrix(c("Ants","Bilberry","Crowberry","Lingonberry","Moose"))
 bears_species_means <- bearsourcres_species[,2:3]
-bears_species_sds <- bearsourcres_species[,4:5]
-bear_species_conc <- (bearsourcres_species[,6:7])/100
-bear_speciesc_sds <- matrix(rep(1,10), ncol = 2, nrow = 5)
+bears_species_sds <- as.matrix(bearsourcres_species[,4:5])
+bear_species_conc <- as.matrix((bearsourcres_species[,6:7])/100)
+bear_speciesc_sds <- rep(1,10)
+bear_speciesc_sds <- matrix(bear_speciesc_sds, nrow = 5,ncol = 2)
 
 
 ```
@@ -154,6 +155,7 @@ print(N15TDF.Mikkelsen)
 bear_speciesTDF_means.Mikkelsen <- cbind(C13TDF.Mikkelsen,N15TDF.Mikkelsen)
 print(bear_speciesTDF_means.Mikkelsen)
 
+bears_species_means <- as.matrix(bearsourcres_species[,2:3])
 
 
 ```
@@ -162,6 +164,8 @@ print(bear_speciesTDF_means.Mikkelsen)
 The final step in understanding bear dietary estimates is looking at the effect of priors. There is disagreement among ecologists that use Bayesian frameworks about the use of informitive priors. I looked at three models, one with uninformitive priors, one with informitive priors, and one with very informitive priors. I then compared the distribution of the prior distribution to the posterior distribution and changes in the resulting diet estimates from each of the models.
 
 ```{r bear diet estimates with uninformitive priors, include=FALSE}
+
+library(simmr)
 
 bearsimmr_TDF_Mikkelsen = simmr_load(
   mixtures=bearmix,
@@ -173,8 +177,28 @@ bearsimmr_TDF_Mikkelsen = simmr_load(
   concentration_means = bear_species_conc
   )
 
-plot(bearsimmr_TDF_Mikkelsen)
+p1 <- plot(bearsimmr_TDF_Mikkelsen,
+           xlab = expression(paste(delta^13, "C (\u2030)", sep = "")),
+           ylab = expression(paste(delta^15, "N (\u2030)", sep = "")),
+           mix_name = "Brown bears",
+           title = ""
+           )
+p1 <- p1+
+  scale_shape_manual(values = c(1,15,16,17,18,4))+
+  theme(axis.text = element_text(size = 18, face = "bold"),
+        axis.title = element_text(size = 23, face = "bold"),
+        legend.text = element_text(size = 18),
+        legend.title = element_text(size = 18, face = "bold"))+
+  scale_y_continuous(breaks = seq(-4,9,1),
+                     labels = c("","","-2","","0","","2","",
+                                "4","","6","","8",""))+
+  coord_equal()
 
+p1
+
+tiff("IsoSpace.tiff", units="in", width=8, height=12, res=600)
+p1
+dev.off()
 
 ```
 
@@ -183,10 +207,10 @@ To compare the effect of adding informitive priors, I first ran a model with uni
 
 ```{r run Simmr uninformitive priors, include=FALSE}
 
-bearsimmr_TDF_Mikkelsen.out = simmr_mcmc(
+bearsimmr_UnPrior_Mikkelsen.out = simmr_mcmc(
   bearsimmr_TDF_Mikkelsen,
   mcmc_control = list(
-    iter= 70000, burn=6000, thin=50, n.chain=4
+    iter=1000000, burn=500000, thin=500, n.chain=4
   )
 )
 
@@ -197,13 +221,74 @@ bearsimmr_TDF_Mikkelsen.out = simmr_mcmc(
 
 ```{r Uninformitive priors model diagnostics and summary, echo=FALSE}
 
-summary(bearsimmr_TDF_Mikkelsen.out, type = "diagnostics")
+summary(bearsimmr_UnPrior_Mikkelsen.out, type = "diagnostics")
 
-summary(bearsimmr_TDF_Mikkelsen.out, type="statistics")
-summary(bearsimmr_TDF_Mikkelsen.out,'quantiles')
-plot(bearsimmr_TDF_Mikkelsen.out, type = "density")
+summary(bearsimmr_UnPrior_Mikkelsen.out, type="statistics")
+summary(bearsimmr_UnPrior_Mikkelsen.out,'quantiles')
+plot(bearsimmr_UnPrior_Mikkelsen.out, type = "density")
 
-plot(bearsimmr_TDF_Mikkelsen.out, type = "matrix")
+plot(bearsimmr_UnPrior_Mikkelsen.out, type = "matrix")
+
+p2 <- plot(bearsimmr_UnPrior_Mikkelsen.out,
+  type = "boxplot",
+  title = ""
+)+
+  theme(
+    axis.text = element_text(size = 18, face = "bold"),
+    axis.title = element_text(size = 20, face = "bold")
+  )+
+  xlab("Diet Source")
+
+p2
+
+tiff("EstBoxPlot.tiff", units="in", width=15, height=7, res=800)
+p2
+dev.off()
+
+
+DietEst.NIpriors <- as.data.frame(bearsimmr_UnPrior_Mikkelsen.out$output$`1`$BUGSoutput$sims.list$p)
+
+pal <- palette(viridis(5))
+
+mytheme <- theme(
+    axis.text = element_text(size = 18,face = "bold"),
+    axis.title = element_text(size = 20, face = "bold"),
+    panel.grid.major = element_line(color = "grey92"),
+    panel.grid.minor = element_line(color = "grey96"),
+    panel.background = element_rect(fill = "white"),
+    axis.line = element_line(colour = "black",size = 1),
+    axis.ticks = element_line(size = 1),
+    )
+
+p3 <- ggplot(data = DietEst.NIpriors)+
+  geom_density(aes(Ants), color= pal[1], fill= pal[1], alpha=0.8)+
+  geom_density(aes(Bilberry), color= pal[2], fill= pal[2], alpha=0.8)+
+  geom_density(aes(Crowberry), color= pal[3], fill= pal[3], alpha=0.8)+
+  geom_density(aes(Lingonberry), color= pal[4], fill= pal[4], alpha=0.8)+
+  geom_density(aes(Moose), color= pal[5], fill= pal[5], alpha=0.8)+
+  xlab("Diet Proportions")+
+  ylab("Density")+
+  theme(
+    axis.text = element_text(size = 18,face = "bold"),
+    axis.title = element_text(size = 20, face = "bold"),
+    panel.grid.major = element_line(color = "grey92"),
+    panel.grid.minor = element_line(color = "grey96"),
+    panel.background = element_rect(fill = "white"),
+    axis.line = element_line(colour = "black",size = 1),
+    axis.ticks = element_line(size = 1),
+    )+
+  scale_y_continuous(expand = c(0,0), breaks = seq(0,200,25))+
+  geom_text(label="Moose", x=0.06, y=135, size=8)+
+  geom_text(label="Ants", x=0.085, y=80, size=8)+
+  geom_text(label="Crowberry", x=0.152, y=20, size=8)+
+  geom_text(label="Lingonberry", x=0.3, y=20, size=8)+
+  geom_text(label="Bilberry", x=0.55, y=30, size=8)
+
+
+tiff("EstDenPlot.tiff", units="in", width=15, height=7, res=800)
+p3
+dev.off()
+
 
 ```
 
@@ -211,10 +296,10 @@ This graph compares the density of the prior distribution to the posterior distr
 
 ```{r compare uninformitive priors to estimates, echo=FALSE}
 
-prior_viz(bearsimmr_TDF_Mikkelsen.out)
+prior_viz(bearsimmr_UnPrior_Mikkelsen.out)
 
 ```
-## Some-what informitive priors
+## informitive priors
 
 Now I calculate informitive priors. These priors are the mean dietary proportions based on estimated dietary energy content from fecal analysis of brown bears in Sweden and Norway. These studies calculated the proportions of more diet sources than in this analysis so ants, bilberries, crowberry, lingonberry, and moose only make up 0.89 of Scandinavian bears. Because the proportions must sum to 1, the remaining proportion of the diet was added into my five diet sources, distributed evenly to maintain ratios. The standard deviations were all around 0.10, except for moose, which had a standard deviation of 0.16, which I incorporated into the variance around my prior estimates.
 
@@ -228,7 +313,6 @@ bearprior=simmr_elicit(n_sources = 5,
 
 ```
 
-I actually get a warning message from the Simmr package that the standard deviations around these estimates are quite large.
 
 ```{r run model with informitive priors, include=FALSE}
 
@@ -239,7 +323,7 @@ bearsimmr_Priors.out <- simmr_mcmc(
     sd=bearprior$sd
   ),
   mcmc_control = list(
-    iter=70000, burn=6000, thin=50, n.chain=4
+    iter=1000000, burn=500000, thin=500, n.chain=4
   )
 )
 
@@ -259,6 +343,73 @@ plot(bearsimmr_Priors.out, type = "density")
 plot(bearsimmr_Priors.out, type = "matrix")
 
 
+p4 <- plot(bearsimmr_Priors.out,
+  type = "boxplot",
+  title = ""
+)+
+  theme(
+    axis.text = element_text(size = 18, face = "bold"),
+    axis.title = element_text(size = 20, face = "bold")
+  )+
+  xlab("Diet Source")
+
+p4
+
+tiff("EstBoxPlot_InPrior.tiff", units="in", width=15, height=7, res=800)
+p4
+dev.off()
+
+
+DietEst.INpriors <- as.data.frame(bearsimmr_Priors.out$output$`1`$BUGSoutput$sims.list$p)
+DietEst.INpriors$sim <- seq(1,4000)
+
+ggplot(data = DietEst.INpriors, aes(sim,Moose))+
+  geom_point()
+
+ggplot(data = DietEst.INpriors, aes(Moose))+
+  geom_histogram(bins = 30)+
+   stat_bin(aes(y=..count.., label=..count..), geom="text", vjust=-.5)
+(1+6+7+10+21+18+29+19+20+14+10+3)/(621+8+1+1)
+
+
+pal <- palette(viridis(5))
+
+mytheme <- theme(
+    axis.text = element_text(size = 18,face = "bold"),
+    axis.title = element_text(size = 20, face = "bold"),
+    panel.grid.major = element_line(color = "grey92"),
+    panel.grid.minor = element_line(color = "grey96"),
+    panel.background = element_rect(fill = "white"),
+    axis.line = element_line(colour = "black",size = 1),
+    axis.ticks = element_line(size = 1),
+    )
+
+p5 <- ggplot(data = DietEst.INpriors)+
+  geom_density(aes(Ants), color= pal[1], fill= pal[1], alpha=0.7)+
+  geom_density(aes(Bilberry), color= pal[2], fill= pal[2], alpha=0.7)+
+  geom_density(aes(Crowberry), color= pal[3], fill= pal[3], alpha=0.7)+
+  geom_density(aes(Lingonberry), color= pal[4], fill= pal[4], alpha=0.7)+
+  geom_density(aes(Moose), color= pal[5], fill= pal[5], alpha=0.7)+
+  xlab("Diet Proportions")+
+  ylab("Density")+
+  mytheme+
+  scale_y_continuous(expand = c(0,0), breaks = seq(0,200,25))+
+  geom_text(label="Moose", x=0.095, y=100, size=8)+
+  geom_text(label="Ants", x=0.022, y=70, size=8)+
+  geom_text(label="Crowberry", x=0.145, y=18, size=8)+
+  geom_text(label="Lingonberry", x=0.38, y=15, size=8)+
+  geom_text(label="Bilberry", x=0.555, y=22, size=8)+
+  labs(fill="Diet Source")
+
+p5
+
+
+tiff("EstDenPlot_InPriors.tiff", units="in", width=15, height=7, res=800)
+p5
+dev.off()
+
+
+
 ```
 
 This gives the prior and posterior distributions from each model
@@ -267,36 +418,41 @@ This gives the prior and posterior distributions from each model
 ```{r comapring estimates and distributions of uninformitive vs informitive priors}
 
 
-prior_viz(bearsimmr_TDF_Mikkelsen.out)
+p6 <- prior_viz(bearsimmr_Priors.out)
 
-prior_viz(bearsimmr_Priors.out)
+
+tiff("EstDenPriPostPlot_InPriors.tiff", units="in", width=15, height=7, res=800)
+p6
+dev.off()
+
+
 
 ```
 
 The distribution of my priors are fairly wide and is only similar to the posterior distribution in crowberry. It looks like these priors have a small effect on my diet estimates, and that the prior distributions based on scat analysis is quite different from the estimates derived from stable isotopes.
 
-```{r more informitive priors}
+```{r less informitive priors}
 
 
 bearprior2=simmr_elicit(n_sources = 5,
                    c(0.20,0.19,0.16,0.09,0.36),
-                   c(0.025,0.025,0.025,0.025,0.004))
+                   c(0.1,0.1,0.1,0.1,0.1))
 ```
 
-## More-informitive priors
+## Less-informitive priors
 
 Because the addition of my informitive priors had only small effects on my diet estimates, I included another set of priors with standard deviations half of large as I used for the some-what informitive priors.
 
 ```{r}
 
-bearsimmr_VeryInformPriors.out <- simmr_mcmc(
+bearsimmr_LessInformPriors.out <- simmr_mcmc(
   bearsimmr_TDF_Mikkelsen,
   prior_control = list(
     means=bearprior2$mean,
     sd=bearprior2$sd
   ),
   mcmc_control = list(
-    iter=60000, burn=6000, thin=50, n.chain=4
+    iter=1000000, burn=500000, thin=500, n.chain=4
   )
 )
 
@@ -306,11 +462,12 @@ bearsimmr_VeryInformPriors.out <- simmr_mcmc(
 
 ```{r}
 
-summary(bearsimmr_VeryInformPriors.out, type = "diagnostics")
+summary(bearsimmr_LessInformPriors.out, type = "diagnostics")
 
-summary(bearsimmr_VeryInformPriors.out, type="statistics")
-summary(bearsimmr_VeryInformPriors.out,'quantiles')
-plot(bearsimmr_VeryInformPriors.out, type = "density")
+summary(bearsimmr_LessInformPriors.out, type="statistics")
+summary(bearsimmr_LessInformPriors.out,'quantiles')
+plot(bearsimmr_LessInformPriors.out, type = "density")
+plot(bearsimmr_LessInformPriors.out, type = "matrix")
 
 
 ```
@@ -320,7 +477,9 @@ plot(bearsimmr_VeryInformPriors.out, type = "density")
 
 prior_viz(bearsimmr_TDF_Mikkelsen.out)
 prior_viz(bearsimmr_Priors.out)
-prior_viz(bearsimmr_VeryInformPriors.out )
+prior_viz(bearsimmr_LessInformPriors.out)
+
+save.image("DietModelOutputs")
 
 ```
 
@@ -341,6 +500,401 @@ ggplot(data = Fecal.SI, aes(Model,Estimate))+
         legend.title = element_text(size=20,face="bold"))+
   ylab("Estimated diet proportion")
   
+
+```
+
+# Look at differences in diets between males and females
+
+### First, females
+
+
+```{r}
+
+bear.fem <- subset(bear.si,sex!="M")
+
+Fbearmix <- cbind(bear.fem$C13.suess,bear.fem$N15)
+colnames(Fbearmix) = c('d13C','d15N')
+
+bearsimmr_Fems = simmr_load(
+  mixtures=Fbearmix,
+  source_names=bears_species_names,
+  source_means=bears_species_means,
+  source_sds=bears_species_sds,
+  correction_means=bear_speciesTDF_means.Mikkelsen,
+  correction_sds=bear_speciesc_sds,
+  concentration_means = bear_species_conc
+  )
+
+p10 <- plot(bearsimmr_Fems,
+           xlab = expression(paste(delta^13, "C (\u2030)", sep = "")),
+           ylab = expression(paste(delta^15, "N (\u2030)", sep = "")),
+           mix_name = "Brown bears",
+           title = ""
+           )
+
+
+bearsimmr_UnPrior_Fems = simmr_mcmc(
+  bearsimmr_Fems,
+  mcmc_control = list(
+    iter=1000000, burn=500000, thin=500, n.chain=4
+  )
+)
+
+summary(bearsimmr_UnPrior_Fems, type = "diagnostics")
+
+summary(bearsimmr_UnPrior_Fems, type="statistics")
+summary(bearsimmr_UnPrior_Fems,'quantiles')
+plot(bearsimmr_UnPrior_Fems, type = "density")
+plot(bearsimmr_UnPrior_Fems, type = "matrix")
+
+p12 <- plot(bearsimmr_UnPrior_Fems,
+  type = "boxplot",
+  title = ""
+)+
+  theme(
+    axis.text = element_text(size = 18, face = "bold"),
+    axis.title = element_text(size = 20, face = "bold")
+  )+
+  xlab("Diet Source")
+
+p12
+
+tiff("EstBoxPlot_Fems.tiff", units="in", width=15, height=7, res=800)
+p12
+dev.off()
+
+
+DietEst.Fems <- as.data.frame(bearsimmr_UnPrior_Fems$output$`1`$BUGSoutput$sims.list$p)
+
+pal <- palette(viridis(5))
+
+mytheme <- theme(
+    axis.text = element_text(size = 18,face = "bold"),
+    axis.title = element_text(size = 20, face = "bold"),
+    panel.grid.major = element_line(color = "grey92"),
+    panel.grid.minor = element_line(color = "grey96"),
+    panel.background = element_rect(fill = "white"),
+    axis.line = element_line(colour = "black",size = 1),
+    axis.ticks = element_line(size = 1),
+    )
+
+p13 <- ggplot(data = DietEst.Fems)+
+  geom_density(aes(Ants), color= pal[1], fill= pal[1], alpha=0.8)+
+  geom_density(aes(Bilberry), color= pal[2], fill= pal[2], alpha=0.8)+
+  geom_density(aes(Crowberry), color= pal[3], fill= pal[3], alpha=0.8)+
+  geom_density(aes(Lingonberry), color= pal[4], fill= pal[4], alpha=0.8)+
+  geom_density(aes(Moose), color= pal[5], fill= pal[5], alpha=0.8)+
+  xlab("Diet Proportions")+
+  ylab("Density")+
+  theme(
+    axis.text = element_text(size = 18,face = "bold"),
+    axis.title = element_text(size = 20, face = "bold"),
+    panel.grid.major = element_line(color = "grey92"),
+    panel.grid.minor = element_line(color = "grey96"),
+    panel.background = element_rect(fill = "white"),
+    axis.line = element_line(colour = "black",size = 1),
+    axis.ticks = element_line(size = 1),
+    )+
+  scale_y_continuous(expand = c(0,0), breaks = seq(0,200,25))+
+  geom_text(label="Moose", x=0.06, y=135, size=8)+
+  geom_text(label="Ants", x=0.085, y=80, size=8)+
+  geom_text(label="Crowberry", x=0.152, y=20, size=8)+
+  geom_text(label="Lingonberry", x=0.3, y=20, size=8)+
+  geom_text(label="Bilberry", x=0.45, y=30, size=8)
+
+p13
+
+tiff("EstDenPlot_Fems.tiff", units="in", width=15, height=7, res=800)
+p13
+dev.off()
+
+
+
+```
+
+
+### Males
+
+```{r}
+bear.male <- subset(bear.si,sex!="F")
+
+Mbearmix <- cbind(bear.male$C13.suess,bear.male$N15)
+colnames(Mbearmix) = c('d13C','d15N')
+
+bearsimmr_Male = simmr_load(
+  mixtures=Mbearmix,
+  source_names=bears_species_names,
+  source_means=bears_species_means,
+  source_sds=bears_species_sds,
+  correction_means=bear_speciesTDF_means.Mikkelsen,
+  correction_sds=bear_speciesc_sds,
+  concentration_means = bear_species_conc
+  )
+
+p11 <- plot(bearsimmr_Male,
+           xlab = expression(paste(delta^13, "C (\u2030)", sep = "")),
+           ylab = expression(paste(delta^15, "N (\u2030)", sep = "")),
+           mix_name = "Brown bears",
+           title = ""
+           )
+
+
+bearsimmr_UnPrior_Males = simmr_mcmc(
+  bearsimmr_Male,
+  mcmc_control = list(
+    iter=1000000, burn=500000, thin=500, n.chain=4
+  )
+)
+
+
+summary(bearsimmr_UnPrior_Males, type = "diagnostics")
+
+summary(bearsimmr_UnPrior_Males, type="statistics")
+summary(bearsimmr_UnPrior_Males,'quantiles')
+plot(bearsimmr_UnPrior_Males, type = "density")
+plot(bearsimmr_UnPrior_Males, type = "matrix")
+
+
+p14 <- plot(bearsimmr_UnPrior_Males,
+  type = "boxplot",
+  title = ""
+)+
+  theme(
+    axis.text = element_text(size = 18, face = "bold"),
+    axis.title = element_text(size = 20, face = "bold")
+  )+
+  xlab("Diet Source")
+
+p14
+
+tiff("EstBoxPlot_Males.tiff", units="in", width=15, height=7, res=800)
+p14
+dev.off()
+
+
+DietEst.Males <- as.data.frame(bearsimmr_UnPrior_Males$output$`1`$BUGSoutput$sims.list$p)
+
+pal <- palette(viridis(5))
+
+mytheme <- theme(
+    axis.text = element_text(size = 18,face = "bold"),
+    axis.title = element_text(size = 20, face = "bold"),
+    panel.grid.major = element_line(color = "grey92"),
+    panel.grid.minor = element_line(color = "grey96"),
+    panel.background = element_rect(fill = "white"),
+    axis.line = element_line(colour = "black",size = 1),
+    axis.ticks = element_line(size = 1),
+    )
+
+p15 <- ggplot(data = DietEst.Males)+
+  geom_density(aes(Ants), color= pal[1], fill= pal[1], alpha=0.8)+
+  geom_density(aes(Bilberry), color= pal[2], fill= pal[2], alpha=0.8)+
+  geom_density(aes(Crowberry), color= pal[3], fill= pal[3], alpha=0.8)+
+  geom_density(aes(Lingonberry), color= pal[4], fill= pal[4], alpha=0.8)+
+  geom_density(aes(Moose), color= pal[5], fill= pal[5], alpha=0.8)+
+  xlab("Diet Proportions")+
+  ylab("Density")+
+  theme(
+    axis.text = element_text(size = 18,face = "bold"),
+    axis.title = element_text(size = 20, face = "bold"),
+    panel.grid.major = element_line(color = "grey92"),
+    panel.grid.minor = element_line(color = "grey96"),
+    panel.background = element_rect(fill = "white"),
+    axis.line = element_line(colour = "black",size = 1),
+    axis.ticks = element_line(size = 1),
+    )+
+  scale_y_continuous(expand = c(0,0), breaks = seq(0,200,25))+
+  geom_text(label="Moose", x=0.085, y=60, size=7)+
+  geom_text(label="Ants", x=0.115, y=40, size=7)+
+  geom_text(label="Crowberry", x=0.15, y=14, size=7)+
+  geom_text(label="Lingonberry", x=0.27, y=12, size=7)+
+  geom_text(label="Bilberry", x=0.61, y=21, size=7)
+
+p15
+
+tiff("EstDenPlot_Males.tiff", units="in", width=15, height=7, res=800)
+p15
+dev.off()
+```
+
+### Comparing Males & Females
+
+```{r}
+pal2 <- palette(viridis(30))
+
+p16 <- ggplot()+
+  geom_density(data = DietEst.Males,
+               aes(Ants), color= pal2[1], fill= pal2[1], alpha=0.8)+
+  geom_density(data = DietEst.Males,
+               aes(Bilberry), color= pal2[5], fill= pal2[5], alpha=0.8)+
+  geom_density(data = DietEst.Males,
+               aes(Crowberry), color= pal2[9], fill= pal2[9], alpha=0.8)+
+  geom_density(data = DietEst.Males,
+               aes(Lingonberry), color= pal2[13], fill= pal2[13], alpha=0.8)+
+  geom_density(data = DietEst.Males,
+               aes(Moose), color= pal2[17], fill= pal2[17], alpha=0.8)+
+   geom_density(data = DietEst.Fems,
+               aes(Ants), color= pal2[3], fill= pal2[3], alpha=0.8)+
+  geom_density(data = DietEst.Fems,
+               aes(Bilberry), color= pal2[7], fill= pal2[7], alpha=0.8)+
+  geom_density(data = DietEst.Fems,
+               aes(Crowberry), color= pal2[11], fill= pal2[11], alpha=0.8)+
+  geom_density(data = DietEst.Fems,
+               aes(Lingonberry), color= pal2[15], fill= pal2[15], alpha=0.8)+
+  geom_density(data = DietEst.Fems,
+               aes(Moose), color= pal2[19], fill= pal2[19], alpha=0.8)+
+  xlab("Diet Proportions")+
+  ylab("Density")+
+  theme(
+    axis.text = element_text(size = 18,face = "bold"),
+    axis.title = element_text(size = 20, face = "bold"),
+    panel.grid.major = element_line(color = "grey92"),
+    panel.grid.minor = element_line(color = "grey96"),
+    panel.background = element_rect(fill = "white"),
+    axis.line = element_line(colour = "black",size = 1),
+    axis.ticks = element_line(size = 1),
+    )+
+  scale_y_continuous(expand = c(0,0), breaks = seq(0,200,25))+
+  geom_text(label="Moose", x=0.085, y=60, size=7)+
+  geom_text(label="Ants", x=0.115, y=40, size=7)+
+  geom_text(label="Crowberry", x=0.15, y=14, size=7)+
+  geom_text(label="Lingonberry", x=0.27, y=12, size=7)+
+  geom_text(label="Bilberry", x=0.61, y=21, size=7)
+
+p16
+
+p17 <- ggplot()+
+  geom_density(data = DietEst.Males,
+               aes(Ants), color= pal2[9], fill= pal2[9], alpha=0.7)+
+  geom_density(data = DietEst.Fems,
+               aes(Ants), color= pal2[1], fill= pal2[1], alpha=0.7)+
+  xlab("Proportion Ants")+
+  ylab("Density")+
+  theme(
+    axis.text = element_text(size = 16,face = "bold"),
+    axis.title = element_text(size = 18, face = "bold"),
+    panel.grid.major = element_line(color = "grey92"),
+    panel.grid.minor = element_line(color = "grey96"),
+    panel.background = element_rect(fill = "white"),
+    axis.line = element_line(colour = "black",size = 1),
+    axis.ticks = element_line(size = 1),
+    )+
+  scale_y_continuous(expand = c(0,0))+
+  geom_text(label="Males", x=0.1, y=30, size=7)+
+  geom_text(label="Females", x=0.06, y=77, size=7)
+
+p17
+  
+tiff("EstDenPlot_AntsMF.tiff", units="in", width=15, height=7, res=800)
+p17
+dev.off()
+
+p18 <- ggplot()+
+  geom_density(data = DietEst.Males,
+               aes(Bilberry), color= pal2[10], fill= pal2[10], alpha=0.7)+
+  geom_density(data = DietEst.Fems,
+               aes(Bilberry), color= pal2[2], fill= pal2[2], alpha=0.7)+
+  xlab("Proportion Bilberry")+
+  ylab("Density")+
+  theme(
+    axis.text = element_text(size = 16,face = "bold"),
+    axis.title = element_text(size = 18, face = "bold"),
+    panel.grid.major = element_line(color = "grey92"),
+    panel.grid.minor = element_line(color = "grey96"),
+    panel.background = element_rect(fill = "white"),
+    axis.line = element_line(colour = "black",size = 1),
+    axis.ticks = element_line(size = 1),
+    axis.title.y = element_blank())+
+  scale_y_continuous(expand = c(0,0))+
+  geom_text(label="Males", x=0.1, y=30, size=7)+
+  geom_text(label="Females", x=0.06, y=77, size=7)
+
+p18
+  
+tiff("EstDenPlot_BilberryMF.tiff", units="in", width=15, height=7, res=800)
+p18
+dev.off()
+
+p19 <- ggplot()+
+  geom_density(data = DietEst.Males,
+               aes(Crowberry), color= pal2[11], fill= pal2[11], alpha=0.7)+
+  geom_density(data = DietEst.Fems,
+               aes(Crowberry), color= pal2[3], fill= pal2[3], alpha=0.7)+
+  xlab("Proportion Crowberry")+
+  theme(
+    axis.text = element_text(size = 16,face = "bold"),
+    axis.title = element_text(size = 18, face = "bold"),
+    panel.grid.major = element_line(color = "grey92"),
+    panel.grid.minor = element_line(color = "grey96"),
+    panel.background = element_rect(fill = "white"),
+    axis.line = element_line(colour = "black",size = 1),
+    axis.ticks = element_line(size = 1),
+    axis.title.y = element_blank())+
+  scale_y_continuous(expand = c(0,0))+
+  geom_text(label="Males", x=0.1, y=30, size=7)+
+  geom_text(label="Females", x=0.06, y=77, size=7)
+
+p19
+  
+tiff("EstDenPlot_CrowberryMF.tiff", units="in", width=15, height=7, res=800)
+p19
+dev.off()
+
+p20 <- ggplot()+
+  geom_density(data = DietEst.Males,
+               aes(Lingonberry), color= pal2[12], fill= pal2[12], alpha=0.7)+
+  geom_density(data = DietEst.Fems,
+               aes(Lingonberry), color= pal2[4], fill= pal2[4], alpha=0.7)+
+  xlab("Proportion Lingonberry")+
+  ylab("Density")+
+  theme(
+    axis.text = element_text(size = 16,face = "bold"),
+    axis.title = element_text(size = 18, face = "bold"),
+    panel.grid.major = element_line(color = "grey92"),
+    panel.grid.minor = element_line(color = "grey96"),
+    panel.background = element_rect(fill = "white"),
+    axis.line = element_line(colour = "black",size = 1),
+    axis.ticks = element_line(size = 1))+
+  scale_y_continuous(expand = c(0,0))+
+  geom_text(label="Males", x=0.1, y=30, size=7)+
+  geom_text(label="Females", x=0.06, y=77, size=7)
+
+p20
+  
+tiff("EstDenPlot_LingonberryMF.tiff", units="in", width=15, height=7, res=800)
+p20
+dev.off()
+
+p21 <- ggplot()+
+  geom_density(data = DietEst.Males,
+               aes(Moose), color= pal2[13], fill= pal2[13], alpha=0.7)+
+  geom_density(data = DietEst.Fems,
+               aes(Moose), color= pal2[5], fill= pal2[5], alpha=0.7)+
+  xlab("Proportion Moose")+
+  theme(
+    axis.text = element_text(size = 16,face = "bold"),
+    axis.title = element_text(size = 18, face = "bold"),
+    panel.grid.major = element_line(color = "grey92"),
+    panel.grid.minor = element_line(color = "grey96"),
+    panel.background = element_rect(fill = "white"),
+    axis.line = element_line(colour = "black",size = 1),
+    axis.ticks = element_line(size = 1),
+    axis.title.y = element_blank()
+    )+
+  scale_y_continuous(expand = c(0,0))
+  
+p21
+  
+tiff("EstDenPlot_MooseMF.tiff", units="in", width=15, height=7, res=800)
+p21
+dev.off()
+
+library(gridExtra)
+
+E <- grid.arrange(p17,p18,p19,p20,p21, ncol=3)
+ggsave('EstDenPlot_GridMF.tiff',
+       path = "C:\\Users\\amikk\\Documents\\Rprojects\\Diet-sensitivty-to-TDFs-and-priors",
+       E,dpi=900, width= 300, height=190, units = "mm")
 
 ```
 

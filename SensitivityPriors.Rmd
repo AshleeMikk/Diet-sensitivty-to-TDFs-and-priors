@@ -2,26 +2,54 @@
 title: "ComparingPriors"
 author: "Ashlee Mikkelsen"
 date: "`r Sys.Date()`"
-output: word_document
+
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
-
+# Setup
+## WD and packages
 
 ```{r, include=FALSE}
 ##### Load in necessary data
 setwd("~/Rprojects/Diet-sensitivty-to-TDFs-and-priors")
 
-Mixture.RAW <- read.csv("RawBearData_SI_CORT.csv")
-BearDietSources <- read.csv("BearDietSources_Cleaned.csv")
-
+library(lme4)
+library(MuMIn)
+library(ggplot2)
+library(viridis)
+library(rstan)
+library(brms)
+library(wiqid)
 
 ```
 
+## set graph theme
+
+```{r, include=FALSE}
+mytheme <- theme(
+    axis.text = element_text(size = 11,face = "bold"),
+    axis.title = element_text(size = 13, face = "bold"),
+    panel.grid.major = element_line(color = "grey92"),
+    panel.grid.minor = element_line(color = "grey96"),
+    panel.background = element_rect(fill = "white"),
+    axis.line = element_line(colour = "black",size = 1.2),
+    axis.ticks = element_line(size = 1),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 11, face = "bold")
+    )
+theme_set(mytheme)
+```
+
+# Data
+
+```{r}
+Mixture.RAW <- read.csv("RawBearData_SI_CORT.csv")
+BearDietSources <- read.csv("BearDietSources_Cleaned.csv")
+
+```
 
 
 ##### Take raw SI data and convert moose hair to moose meat and correct for Suess
@@ -72,9 +100,8 @@ BearDietSources$d15N.C <- DF$MooseMeatN
 ```
 
 
-
+## Clean data
 ```{r, include=FALSE}
-
 bear.si <- subset(Mixture.RAW, N15!="NA")
 bear.si <- subset(bear.si, year.represent!="NA")
 LastYr <- as.numeric(max(bear.si$year.represent))
@@ -84,6 +111,177 @@ bear.si$C13 <- as.numeric(bear.si$C13)
 
 C13.suess <- bear.si$C13-(+0.022*(LastYr-bear.si$year.represent))
 bear.si$C13.suess <- C13.suess
+```
+
+
+# Side bar: N by sex and size
+
+```{r, include=FALSE}
+DF <- subset(bear.si,reprostatus.represent!="WithMother")
+DF <- na.omit(DF)
+colSums(is.na(DF))
+DF$HCsq <- DF$headcirc^2
+DF$HCln <- log(DF$headcirc)
+DF$fYR <- as.factor(DF$year.represent)
+DF$N15ln <- log(DF$N15)
+
+DF$ZHC <- standardize(DF$headcirc)
+DF$ZHCsq <- standardize(DF$HCsq)
+DF$ZHCln <- standardize(DF$HCln)
+colSums(is.na(DF$N15))
+
+ggplot(data = DF, aes(N15))+
+  geom_histogram(binwidth = 0.5*sd(DF$N15))
+
+ggplot(data = DF, aes(N15ln))+
+  geom_histogram(binwidth = 0.5*sd(DF$N15ln))
+
+
+Sizebrm1 <- brm(N15 ~1+(1|BearID),
+               data = DF,
+               family = gaussian(link = "log"),
+              iter = 8000,
+              thin = 10)
+summary(Sizebrm1)
+options(mc.cores = 1)
+fit1 <- add_criterion(Sizebrm1, criterion = "loo")
+gc()
+print(fit1$criteria$loo)
+Int.LOOic <- fit1$criteria$loo$estimates[3,1]
+
+
+Sizebrm2 <- brm(N15 ~ZHC+(1|BearID),
+               data = DF,
+               family = gaussian(link = "log"),
+              iter = 8000,
+              thin = 10)
+summary(Sizebrm2)
+options(mc.cores = 1)
+fit2 <- add_criterion(Sizebrm2, criterion = "loo")
+gc()
+print(fit2$criteria$loo)
+HC.LOOic <- fit2$criteria$loo$estimates[3,1]
+
+
+Sizebrm3 <- brm(N15 ~ZHC+ZHCsq+(1|BearID),
+               data = DF,
+               family = gaussian(link = "log"),
+              iter = 8000,
+              thin = 10)
+summary(Sizebrm3)
+options(mc.cores = 1)
+fit3 <- add_criterion(Sizebrm3, criterion = "loo")
+gc()
+print(fit3$criteria$loo)
+HCsq.LOOic <- fit3$criteria$loo$estimates[3,1]
+
+Sizebrm4 <- brm(N15 ~ZHCln+(1|BearID),
+               data = DF,
+               family = gaussian(link = "log"),
+              iter = 8000,
+              thin = 10)
+summary(Sizebrm4)
+options(mc.cores = 1)
+fit4 <- add_criterion(Sizebrm4, criterion = "loo")
+gc()
+print(fit4$criteria$loo)
+HCln.LOOic <- fit4$criteria$loo$estimates[3,1]
+
+
+Sizebrm5 <- brm(N15 ~sex+ZHCln+(1|BearID),
+               data = DF,
+               family = gaussian(link = "log"),
+              iter = 8000,
+              thin = 10)
+summary(Sizebrm5)
+options(mc.cores = 1)
+fit5 <- add_criterion(Sizebrm5, criterion = "loo")
+gc()
+print(fit5$criteria$loo)
+SexHCln.LOOic <- fit5$criteria$loo$estimates[3,1]
+
+Sizebrm6 <- brm(N15 ~sex+ZHCln+sex:ZHCln+(1|BearID),
+               data = DF,
+               family = gaussian(link = "log"),
+              iter = 8000,
+              thin = 10)
+summary(Sizebrm6)
+options(mc.cores = 1)
+fit6 <- add_criterion(Sizebrm6, criterion = "loo")
+gc()
+print(fit5$criteria$loo)
+SexHClninx.LOOic <- fit6$criteria$loo$estimates[3,1]
+```
+
+
+```{r, include=FALSE}
+##### Females only, as Anne thought the trend was not supported in Fems
+FemsOnly <- subset(DF, sex!="M")
+SizeFems1lm <- lmer(N15~1+(1|BearID), data = FemsOnly)
+SizeFems2lm <- lmer(N15~headcirc+(1|BearID), data = FemsOnly)
+
+FemsAIC1 <- AICc(SizeFems1lm)
+FemsAIC2 <- AICc(SizeFems2lm)
+FemsAIC2-FemsAIC1
+
+summary(SizeFemslm)
+
+########
+Males <- subset(DF, sex=="M")
+Females <- subset(DF, sex=="F")
+
+M15N <- function(x){
+  exp(1.63+(0.07*x))
+}
+
+Zmhc <- seq(min(Males$ZHCln),max(Males$ZHCln),
+           length.out=200)
+
+Mnitro <- M15N(Zmhc)
+Mnitro
+aMHC <- exp((Zmhc*sd(DF$HCln))+mean(DF$HCln))
+aMHC
+
+F15N <- function(x){
+  exp(1.51+(0.02*x))
+}
+Zfhc <- seq(min(Females$ZHCln),max(Females$ZHCln),
+           length.out=200)
+aFHC <- exp((Zfhc*sd(DF$HCln))+mean(DF$HCln))
+
+Fnitro <- F15N(Zfhc)
+Fnitro
+
+Nitro.HC <- as.data.frame(cbind(aMHC,Mnitro,aFHC,Fnitro))
+
+P <- palette(viridis(12))
+P <- palette(viridis(12))
+
+
+pSB1 <- ggplot(data = Nitro.HC)+
+  geom_jitter(data = DF, aes(headcirc, N15, color=sex),
+              width = 0.2, size=2, alpha=0.35)+
+  geom_line(aes(aMHC,Mnitro), lwd=1.2, color=P[3])+
+  geom_line(aes(aFHC,Fnitro), lwd=1.2, color=P[9])+
+  scale_color_manual(values = c(P[3], P[9]),
+                     breaks =c("M","F"))+
+  xlab("Skull circumference (cm)")+
+  ylab(expression(paste(delta^15, "N (\u2030)", sep = "")))+
+  scale_y_continuous(expand = c(0,0))+
+  scale_x_continuous(expand = c(0,0))+
+  labs(color="Sex")
+  
+tiff("SexHeadCircLM.tiff", units="in", width=7, height=5, res=800)
+pSB1
+dev.off()
+
+Agelm1 <- lmer(N15~age+sex+(1|BearID), data = DF)
+AgeAICc1 <- AICc(Agelm1)
+summary(Agelm1)
+
+Agelm2 <- lmer(N15~age+sex+age:sex+(1|BearID), data = DF)
+AgeAICc2 <- AICc(Agelm2)
+summary(Agelm2)
 
 ```
 
@@ -162,8 +360,19 @@ bears_species_means <- as.matrix(bearsourcres_species[,2:3])
 
 ```
 
-## Introduction
+# Introduction
 The final step in understanding bear dietary estimates is looking at the effect of priors. There is disagreement among ecologists that use Bayesian frameworks about the use of informitive priors. I looked at three models, one with uninformitive priors, one with informitive priors, and one with very informitive priors. I then compared the distribution of the prior distribution to the posterior distribution and changes in the resulting diet estimates from each of the models.
+
+## Sample summary
+
+```{r}
+
+
+
+
+```
+
+
 
 ```{r bear diet estimates with uninformitive priors, include=FALSE}
 
@@ -189,8 +398,7 @@ p1 <- p1+
   scale_shape_manual(values = c(1,15,16,17,18,4))+
   theme(axis.text = element_text(size = 18, face = "bold"),
         axis.title = element_text(size = 23, face = "bold"),
-        legend.text = element_text(size = 18),
-        legend.title = element_blank())+
+        legend.text = element_text(size = 18))+
   scale_y_continuous(breaks = seq(-4,9,1),
                      labels = c("","","-2","","0","","2","",
                                 "4","","6","","8",""))+
@@ -257,15 +465,6 @@ DietEst.NIpriors <- read.csv("DietEst.NIpriors.csv")
 
 pal <- palette(viridis(5))
 
-mytheme <- theme(
-    axis.text = element_text(size = 18,face = "bold"),
-    axis.title = element_text(size = 20, face = "bold"),
-    panel.grid.major = element_line(color = "grey92"),
-    panel.grid.minor = element_line(color = "grey96"),
-    panel.background = element_rect(fill = "white"),
-    axis.line = element_line(colour = "black",size = 1),
-    axis.ticks = element_line(size = 1),
-    )
 
 p3 <- ggplot(data = DietEst.NIpriors)+
   geom_density(aes(Ants), color= pal[1], fill= pal[1], alpha=0.6, lwd=1)+
@@ -520,6 +719,18 @@ ggplot(data = Fecal.SI, aes(Model,Estimate))+
 bear.fem <- subset(bear.si,sex!="M")
 bear.fem <- subset(bear.fem, reprostatus.represent!="WithMother")
 
+ggplot(data = bear.fem, aes(N15, headcirc))+
+  geom_jitter()+
+  mytheme+
+  geom_smooth(method = "lm")
+
+library(lme4)
+Fem.lm <- lmer(headcirc ~N15+(1|BearID), data = bear.fem)
+summary(Fem.lm)
+
+1.45-(1.96*0.59)
+
+
 Fbearmix <- cbind(bear.fem$C13.suess,bear.fem$N15)
 colnames(Fbearmix) = c('d13C','d15N')
 
@@ -538,8 +749,18 @@ p10 <- plot(bearsimmr_Fems,
            ylab = expression(paste(delta^15, "N (\u2030)", sep = "")),
            mix_name = "Brown bears",
            title = ""
-           )
+           )+
+  scale_shape_manual(values = c(1,15,16,17,18,4))+
+  theme(axis.text = element_text(size = 18, face = "bold"),
+        axis.title = element_text(size = 23, face = "bold"),
+        legend.text = element_text(size = 18),
+        legend.title = element_blank())+
+  scale_y_continuous(breaks = seq(-4,9,1),
+                     labels = c("","","-2","","0","","2","",
+                                "4","","6","","8",""))+
+  coord_equal()
 
+p10
 
 bearsimmr_UnPrior_Fems = simmr_mcmc(
   bearsimmr_Fems,
@@ -647,8 +868,18 @@ p11 <- plot(bearsimmr_Male,
            ylab = expression(paste(delta^15, "N (\u2030)", sep = "")),
            mix_name = "Brown bears",
            title = ""
-           )
+           )+
+  scale_shape_manual(values = c(1,15,16,17,18,4))+
+  theme(axis.text = element_text(size = 18, face = "bold"),
+        axis.title = element_text(size = 23, face = "bold"),
+        legend.text = element_text(size = 18),
+        legend.title = element_blank())+
+  scale_y_continuous(breaks = seq(-4,9,1),
+                     labels = c("","","-2","","0","","2","",
+                                "4","","6","","8",""))+
+  coord_equal()
 
+p11
 
 bearsimmr_UnPrior_Males = simmr_mcmc(
   bearsimmr_Male,
@@ -948,6 +1179,71 @@ E <- grid.arrange(p17,p18,p19,p20,p21, ncol=3)
 ggsave('EstDenPlot_GridMF.tiff',
        path = "C:\\Users\\amikk\\Documents\\Rprojects\\Diet-sensitivty-to-TDFs-and-priors",
        E,dpi=900, width= 300, height=190, units = "mm")
+
+
+p22 <- plot(bearsimmr_TDF_Mikkelsen,
+           xlab = "",
+           ylab = expression(paste(delta^15, "N (\u2030)", sep = "")),
+           mix_name = "Brown bears")+
+  scale_shape_manual(values = c(1,15,16,17,18,4))+
+  theme(axis.text = element_text(size = 18, face = "bold"),
+        axis.title = element_text(size = 23, face = "bold"),
+        legend.text = element_text(size = 18),
+        plot.title = element_blank(),
+        legend.position = "none")+
+  scale_y_continuous(breaks = seq(-4,9,1),
+                     labels = c("","","-2","","0","","2","",
+                                "4","","6","","8",""))+
+  coord_equal()+
+  geom_text(label="A",size=8, y=8.5, x=-20.5)
+p22
+
+
+p23 <- plot(bearsimmr_Fems,
+           xlab = expression(paste(delta^13, "C (\u2030)", sep = "")),
+           ylab = expression(paste(delta^15, "N (\u2030)", sep = "")),
+           mix_name = "Brown bears")+
+  scale_shape_manual(values = c(1,15,16,17,18,4))+
+  theme(axis.text = element_text(size = 18, face = "bold"),
+        axis.title = element_text(size = 23, face = "bold"),
+        legend.text = element_text(size = 18),
+        legend.title = element_blank(),
+        legend.position = "none",
+        plot.title = element_blank(),
+        axis.title.y = element_blank())+
+  scale_y_continuous(breaks = seq(-4,9,1),
+                     labels = c("","","-2","","0","","2","",
+                                "4","","6","","8",""))+
+  coord_equal()+
+  geom_text(label="B",size=8, y=8.5, x=-20.5)
+
+p23
+
+p24 <- plot(bearsimmr_Male,
+           xlab = "",
+           ylab = expression(paste(delta^15, "N (\u2030)", sep = "")),
+           mix_name = "Brown bears")+
+  scale_shape_manual(values = c(1,15,16,17,18,4))+
+  theme(axis.text = element_text(size = 18, face = "bold"),
+        axis.title = element_text(size = 23, face = "bold"),
+        legend.text = element_text(size = 18),
+        legend.title = element_blank(),
+        plot.title = element_blank(),
+        axis.title.y = element_blank(),
+        legend.position = "none")+
+  scale_y_continuous(breaks = seq(-4,9,1),
+                     labels = c("","","-2","","0","","2","",
+                                "4","","6","","8",""))+
+  coord_equal()+
+  geom_text(label="C",size=8, y=8.5, x=-20.5)
+
+p24
+
+
+F <- grid.arrange(p22,p23,p24, ncol=3)
+ggsave('MixingSpace_3.tiff',
+       path = "C:\\Users\\amikk\\Documents\\Rprojects\\Diet-sensitivty-to-TDFs-and-priors",
+       F,dpi=900, width= 300, height=190, units = "mm")
 
 ```
 

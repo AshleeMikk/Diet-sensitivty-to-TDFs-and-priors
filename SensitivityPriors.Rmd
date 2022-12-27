@@ -128,7 +128,7 @@ DF$N15ln <- log(DF$N15)
 DF$ZHC <- standardize(DF$headcirc)
 DF$ZHCsq <- standardize(DF$HCsq)
 DF$ZHCln <- standardize(DF$HCln)
-colSums(is.na(DF$N15))
+colSums(is.na(DF))
 
 ggplot(data = DF, aes(N15))+
   geom_histogram(binwidth = 0.5*sd(DF$N15))
@@ -211,20 +211,34 @@ fit6 <- add_criterion(Sizebrm6, criterion = "loo")
 gc()
 print(fit5$criteria$loo)
 SexHClninx.LOOic <- fit6$criteria$loo$estimates[3,1]
+
+Int.LOOic-SexHClninx.LOOic
+
 ```
 
 
 ```{r, include=FALSE}
 ##### Females only, as Anne thought the trend was not supported in Fems
 FemsOnly <- subset(DF, sex!="M")
-SizeFems1lm <- lmer(N15~1+(1|BearID), data = FemsOnly)
-SizeFems2lm <- lmer(N15~headcirc+(1|BearID), data = FemsOnly)
+SizeFems1lm <- brm(N15~1+(1|BearID)+(1|fYR),
+                   data = FemsOnly,
+                   family = gaussian(link = "log"))
+options(mc.cores = 1)
+fit7 <- add_criterion(SizeFems1lm, criterion = "loo")
+gc()
+print(fit7$criteria$loo)
+FemsINT.LOOic <- fit7$criteria$loo$estimates[3,1]
 
-FemsAIC1 <- AICc(SizeFems1lm)
-FemsAIC2 <- AICc(SizeFems2lm)
-FemsAIC2-FemsAIC1
+SizeFems2lm <- brm(N15~headcirc+(1|BearID)+(1|fYR),
+                   data = FemsOnly,
+                   family = gaussian(link = "log"))
+fit8 <- add_criterion(SizeFems2lm, criterion = "loo")
+gc()
+print(fit8$criteria$loo)
+FemsHC.LOOic <- fit8$criteria$loo$estimates[3,1]
 
-summary(SizeFemslm)
+summary(SizeFems2lm)
+summary(SizeFems1lm)
 
 ########
 Males <- subset(DF, sex=="M")
@@ -745,8 +759,8 @@ bearsimmr_Fems = simmr_load(
   )
 
 p10 <- plot(bearsimmr_Fems,
-           xlab = expression(paste(delta^13, "C (\u2030)", sep = "")),
-           ylab = expression(paste(delta^15, "N (\u2030)", sep = "")),
+           xlab = expression(paste(delta^13,"C (\u2030)",sep = "")),
+           ylab = expression(paste(delta^15,"N (\u2030)",sep = "")),
            mix_name = "Brown bears",
            title = ""
            )+
@@ -796,6 +810,7 @@ dev.off()
 DietEst.Fems <- as.data.frame(bearsimmr_UnPrior_Fems$output$`1`$BUGSoutput$sims.list$p)
 
 write.csv(DietEst.Fems, "DietEstFeamles.csv")
+DietEst.Fems<- read.csv("DietEstFeamles.csv")
 
 pal <- palette(viridis(5))
 
@@ -917,6 +932,7 @@ dev.off()
 DietEst.Males <- as.data.frame(bearsimmr_UnPrior_Males$output$`1`$BUGSoutput$sims.list$p)
 
 write.csv(DietEst.Males,"DietEstMales.csv")
+DietEst.Males <- read.csv("DietEstMales.csv")
 
 pal <- palette(viridis(5))
 
@@ -964,6 +980,10 @@ dev.off()
 ### Comparing Males & Females
 
 ```{r}
+
+library(ggplot2)
+library(viridis)
+pal2 <- palette(viridis(30))
 pal2 <- palette(viridis(30))
 
 p16 <- ggplot()+
@@ -1239,11 +1259,34 @@ p24 <- plot(bearsimmr_Male,
 
 p24
 
+MooseMed.F <- median(DietEst.Fems$Moose)*100
+MooseSD.F <- sd(DietEst.Fems$Moose)*100
+
+MooseMed.M <- median(DietEst.Males$Moose)*100
+MooseSD.M <- sd(DietEst.Males$Moose)*100
+
 
 F <- grid.arrange(p22,p23,p24, ncol=3)
 ggsave('MixingSpace_3.tiff',
        path = "C:\\Users\\amikk\\Documents\\Rprojects\\Diet-sensitivty-to-TDFs-and-priors",
        F,dpi=900, width= 300, height=190, units = "mm")
+
+```
+
+
+ Overall sample sizes
+```{r}
+
+IndMales <- subset(Mixture.RAW,sex=="M")
+IndMales <- subset(IndMales, reprostatus.represent=="SolitaryM")
+IMid <- as.factor(IndMales$BearID)
+as.numeric(IMid)
+
+IndFemales <- subset(Mixture.RAW,sex=="F")
+IndFemales <- subset(IndFemales,
+                     reprostatus.represent=="SolitaryF")
+IFid <- as.factor(IndFemales$BearID)
+as.numeric(IFid)
 
 ```
 

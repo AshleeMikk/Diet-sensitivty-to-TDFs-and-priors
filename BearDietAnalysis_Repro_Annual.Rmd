@@ -204,22 +204,72 @@ row.names(df.stats_repro.annual)
 
 ```
 
+# Model interpretation
 
+## environment set-up
+
+### Working directory & Data
 
 ```{r}
 
 rm(list = ls())
 setwd("~/Rprojects/Diet-sensitivty-to-TDFs-and-priors/ReproductiveClassandAnnual")
-load("~/Rprojects/Diet-sensitivty-to-TDFs-and-priors/ReproductiveClassandAnnual/BearDietEstimates_Repro.RData")
+load("~/Rprojects/Diet-sensitivty-to-TDFs-and-priors/ReproductiveClassandAnnual/BearDietEstimates_ReproAnnual.RData")
 
 df.stats_repro.annual<- read.csv( "DfStats_ReproAnnual.csv")
+```
 
+
+### Load packages
+
+```{r}
 library(readxl)
 library(dplyr)
 library(MixSIAR)
 library(devtools)
 library(viridis)
 library(ggplot2)
+
+```
+
+### set graphing theme
+
+```{r, include=FALSE}
+
+mytheme <- theme(
+    axis.text = element_text(size = 12,face = "bold"),
+    axis.title = element_text(size = 14, face = "bold"),
+    panel.grid.major = element_line(color = "grey92"),
+    panel.grid.minor = element_line(color = "grey96"),
+    panel.background = element_rect(fill = "white"),
+    axis.line = element_line(colour = "black",size = 1),
+    axis.ticks = element_line(size = 1),
+    )
+theme_set(mytheme)
+
+P <- palette(viridis(40))
+P <- palette(viridis(40))
+
+```
+
+## Building data tables
+
+This file is set up so that each row is an estimate and it goes through all estimates in year 1, broken down by repro category, then by each food source. Matrix [3:7,2] are the mean estimates from year 1 (1995) for repro cat 2 (Solitary M) for Ants, Bilberry, crowberry, lingonberry, and moose
+
+```{r}
+
+print(df.stats_repro.annual[3:7,1:2])
+
+```
+
+What I am interested in is differences in diet between the reproductive categories, but also through time. So I need to create some categorical variables within the table that will allow me to easily look at differences by year and repro category. This was easiest to do in excel, simply by splitting the first column into 4 using the dots as deliminators
+
+```{r}
+
+BD.ReproAnnual <- read.csv("BearDiet_ReproAnnual_Analysis.csv")
+BD.ReproAnnual$fYear <- as.factor(BD.ReproAnnual$Year)
+
+
 
 ```
 
@@ -238,12 +288,55 @@ head(diag.repro.annual)
 ```
 
 
+## Graphical output
 
-### Summary statistics
+
+```{r}
+Sfems <- subset(BD.ReproAnnual, ReproCat=="repro 1")
+Smales <- subset(BD.ReproAnnual, ReproCat=="repro 2")
+Mothers <- subset(BD.ReproAnnual, ReproCat=="repro 3")
+Offspring <- subset(BD.ReproAnnual, ReproCat=="repro 4")
+
+
+ggplot(data = Sfems, aes(Year, Mean))+
+  geom_line(aes(group=Source, color=Source))+
+  geom_point(aes(color=Source))+
+  scale_color_viridis(discrete = TRUE)+
+  scale_y_continuous(expand = c(0,0))+
+  scale_x_continuous(expand = c(0,0))
+  
+ggplot(data = Smales, aes(Year, Mean))+
+  geom_line(aes(group=Source, color=Source))+
+  geom_point(aes(color=Source))+
+  scale_color_viridis(discrete = TRUE)+
+  scale_y_continuous(expand = c(0,0))+
+  scale_x_continuous(expand = c(0,0))
+
+ggplot(data = Mothers, aes(Year, Mean))+
+  geom_line(aes(group=Source, color=Source))+
+  geom_point(aes(color=Source))+
+  scale_color_viridis(discrete = TRUE)+
+  scale_y_continuous(expand = c(0,0))+
+  scale_x_continuous(expand = c(0,0))
+
+ggplot(data = Offspring, aes(Year, Mean))+
+  geom_errorbar(aes(color=Source, xmin=LCI, xmax=UCI))+
+  geom_line(aes(group=Source, color=Source))+
+  geom_point(aes(color=Source))+
+  scale_color_viridis(discrete = TRUE)+
+  scale_y_continuous(expand = c(0,0))+
+  scale_x_continuous(expand = c(0,0))
+
+
+```
+
+
+
+## Summary statistics
 ```{r}
 
 
-rownames(df.stats)
+rownames(df.stats_repro.annual)
 
 # Look at the moose proportion for Solitary males (repro 2)
 df.stats[rownames(df.stats) == "p.repro 2.Moose",]

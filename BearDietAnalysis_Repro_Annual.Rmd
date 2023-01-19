@@ -1,0 +1,472 @@
+---
+title: "BearDiet_ReproAnnual"
+author: "Ashlee Mikkelsen"
+date: "2022-12-20"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+OK. I took the dry run with initial data exploration, TDF and prior calculations using Simmr. Now it's time to do the analysis for real. Use INLA to determine covariates, bring in MixSIAR and run the model for a real long time.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+#Packages
+
+First I load in my raw data and fix it up
+```{r clean up and load packages, include=FALSE}
+
+# clear workspace and load packages
+rm(list = ls())
+setwd("~/Rprojects/Diet-sensitivty-to-TDFs-and-priors/ReproductiveClassandAnnual")
+
+library(readxl)
+library(dplyr)
+remotes::install_github("brianstock/MixSIAR", dependencies=T)
+library(devtools)
+library(viridis)
+library(ggplot2)
+library(MixSIAR)
+
+
+```
+
+NOTE: In excel I removed all columns but those pertinent to the analysis: C13.Suess, N15, BearID, and Reprostatus.represent. represent. I renamed the isotope columns to match the MixSIAR standard. I also converted my covariates into categorical covariates with a dummy variable of numbers for each category. For example, repro.status became repro where SolitaryF=1, SolitaryM=2,WithCubs=3, and WithMother=4. Year.represent was renamed yr with 1995=1 through 2015=20. BearID was changed to b1 through b378.
+
+# Looking at Repro Only
+## Load Data
+```{r load data, include=FALSE}
+
+mix.repro.annual <- load_mix_data(
+ filename = "BearIsotopes_MixSIAR_repro_yr.csv",
+ iso_names = c("d13C","d15N"),
+ factors = c("yr","repro"),
+ fac_random = c(FALSE,FALSE),
+ fac_nested = c(FALSE,FALSE),
+ cont_effects = NULL
+)
+
+source <- load_source_data(
+ filename = "bears_sources_MIXSIAR_ConcDep_AnnualYr.csv",
+ source_factors = NULL,
+ conc_dep = TRUE,
+ data_type = "means",
+ mix.repro.annual
+)
+
+disc <- load_discr_data(
+ filename = "bears_discrimination_MixSIAR.csv",
+ mix.repro.annual
+)
+
+
+```
+
+
+### Plot data & Pre-run checks
+
+```{r}
+plot_data(
+ filename = "bear.repro.annual_isospace_MixSIAR",
+ plot_save_pdf = TRUE,
+ plot_save_png = FALSE,
+ mix.repro.annual,
+ source,
+ disc
+ )
+
+calc_area(source=source,mix=mix.repro.annual,discr=disc)
+```
+
+
+
+## Write the JAGS model file
+```{r}
+
+model_filename <- "MixSIAR_Bear.Repro.annual_model.txt" # Name of the JAGS model file
+resid_err <- TRUE
+process_err <- TRUE
+write_JAGS_model(model_filename, resid_err, process_err, mix.repro.annual, source)
+
+```
+
+
+
+### Run prelim test model
+```{r, include=FALSE}
+
+start.time <- Sys.time()
+ReproAnnual.Bear.MixSIAR.test <- run_model(
+ run = "test",
+ mix.repro.annual,
+ source,
+ disc,
+ model_filename
+ )
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+#7.5 minutes
+#6.7 minutes
+
+```
+
+
+
+## Run real model 
+Began running model on "very long" setting- 20.12.2022
+R crashed on 24.12.2022.
+Began running model on "very long" setting for second time 24.12.2022
+Very long estimates didn't seem to converge. The estimates for bilberry and lingon were often bi-modal. Began running "extreme" setting on 29.12.2022
+
+```{r}
+
+start.time <- Sys.time()
+Repro.Annual.Bear.MixSIAR.extreme <- run_model(
+ run = "extreme",
+ mix.repro.annual,
+ source,
+ disc,
+ model_filename
+ )
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
+# very long took 5.6 days
+# extreme took 19.5 days
+
+output_options <- list(summary_save = TRUE,
+                       summary_name = "summary_statistics",
+                       sup_post = FALSE,
+                       plot_post_save_pdf = TRUE,
+                       plot_post_name = "posterior_density",
+                       sup_pairs = FALSE,
+                       plot_pairs_save_pdf = TRUE,
+                       plot_pairs_name = "pairs_plot",
+                       sup_xy = TRUE,
+                       plot_xy_save_pdf = FALSE,
+                       plot_xy_name = "xy_plot",
+                       gelman = TRUE,
+                       heidel = FALSE,
+                       geweke = TRUE,
+                       diag_save = TRUE,
+                       diag_name = "diagnostics",
+                       indiv_effect = FALSE,
+                       plot_post_save_png = FALSE,
+                       plot_pairs_save_png = FALSE,
+                       plot_xy_save_png = FALSE,
+                       diag_save_ggmcmc = FALSE)
+
+BearDiet.Repro.Annual <- Repro.Annual.Bear.MixSIAR.extreme
+save.image("BearDietEstimates_ReproAnnual.RData")
+
+########################################
+output_options <- list(summary_save = TRUE,                 
+                       summary_name = "summary_statistics", 
+                       sup_post = TRUE,                    
+                       plot_post_save_pdf = FALSE,           
+                       plot_post_name = "posterior_density",
+                       sup_pairs = TRUE,             
+                       plot_pairs_save_pdf = TRUE,    
+                       plot_pairs_name = "pairs_plot",
+                       sup_xy = TRUE,           
+                       plot_xy_save_pdf = TRUE,
+                       plot_xy_name = "xy_plot",
+                       gelman = TRUE,
+                       heidel = FALSE,  
+                       geweke = TRUE,   
+                       diag_save = TRUE,
+                       diag_name = "diagnostics",
+                       indiv_effect = FALSE,       
+                       plot_post_save_png = FALSE, 
+                       plot_pairs_save_png = FALSE,
+                       plot_xy_save_png = FALSE,
+                       diag_save_ggmcmc = FALSE,
+                       return_obj = TRUE)
+
+
+df.stats_repro.annual <- output_stats(BearDiet.Repro.Annual,
+                                      mix.repro.annual,
+                                      source,
+                                      output_options)
+
+write.csv(df.stats_repro.annual,
+          "DfStats_ReproAnnual.csv")
+
+row.names(df.stats_repro.annual)
+
+##########################
+
+```
+
+
+
+```{r}
+
+rm(list = ls())
+setwd("~/Rprojects/Diet-sensitivty-to-TDFs-and-priors/ReproductiveClassandAnnual")
+load("~/Rprojects/Diet-sensitivty-to-TDFs-and-priors/ReproductiveClassandAnnual/BearDietEstimates_Repro.RData")
+
+df.stats_repro.annual<- read.csv( "DfStats_ReproAnnual.csv")
+
+library(readxl)
+library(dplyr)
+library(MixSIAR)
+library(devtools)
+library(viridis)
+library(ggplot2)
+
+```
+
+
+## Diagnostics
+
+```{r}
+
+diag.repro.annual <- output_diagnostics(BearDiet.Repro.Annual,
+                           mix.repro.annual, 
+                           source,
+                           output_options)
+names(diag.repro.annual)
+head(diag.repro.annual)
+
+```
+
+
+
+### Summary statistics
+```{r}
+
+
+rownames(df.stats)
+
+# Look at the moose proportion for Solitary males (repro 2)
+df.stats[rownames(df.stats) == "p.repro 2.Moose",]
+
+# Get 95% CI for females with cubs eating moose and ants (repro=3)
+df.stats[rownames(df.stats) == "p.repro 3.Moose",c("2.5%","97.5%")]
+df.stats[rownames(df.stats) == "p.repro 3.Ants",c("2.5%","97.5%")]
+
+source$source_names # confirm Source names:
+                      # Ants =1
+                      # Bilberry =2
+                      # Crowberry =3
+                      # Lingonberry =4
+                      # Moose = 5
+# get the 95% CIs directly from the Bayes posterior
+quantile(BearDiet.Repro$BUGSoutput$sims.list$p.fac2[,3,1], probs=c(.025,.975))
+```
+
+### Calc specific Probabilities
+
+```{r}
+# Calculate the prob that solitary males diet proportion of moose is greater than 0.3
+
+# Total num draws
+tot <- length(BearDiet.Repro$BUGSoutput$sims.list$p.fac2[,2,5])
+# Num draws above 0.3
+above <- length(which(BearDiet.Repro$BUGSoutput$sims.list$p.fac2[,2,5] > 0.3))
+# Prob that the diet proportion is above 30%
+(prob <- above/tot)
+
+# Maybe I want the probability that Females with cubs eat more moose than solitary males
+df.stats[rownames(df.stats) %in% c("p.repro 3.Moose","p.repro 2.Moose"),]
+
+(
+  prob.Moose.wCubs.SolM <-
+    sum(
+      BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac2[,3,5] > BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac2[,2,5]
+      )/tot
+  )
+```
+
+
+### Comparing two groups
+
+```{r}
+#get a complete posterior probability for the difference between the diets of solitary females and females with cubs (i.e. is Fems with offspring - solitary females greater than 0?)
+
+p.Moose.wCubs.SolF <- BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac2[,3,1] - BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac2[,1,1]
+hist(p.Moose.wCubs.SolF,breaks=50,col="grey", main="Difference between Moose proportions, Females wCubs - Solitary Females")
+abline(v=0,col="red",lty=2,lwd=3)
+
+
+```
+
+
+
+```{r}
+
+g.post <- output_posteriors(BearDiet.Annual.Repro, mix.repro.yr, source, output_options)
+
+names(g.post)
+
+# The overall posterior distribution of the global diet estimates
+g.post$global
+
+# Posterior distribution for year 1 (1995)
+g.post$fac1[[1]]
+
+
+
+# Posterior distribution of solitary females with manual modifications
+g.post$fac2[[1]] + 
+  theme(
+    axis.line = element_line(size=2),
+    axis.text = element_text(size = 16,
+                             face = "bold"),
+    axis.title = element_text(size = 18,
+                              face = "bold")
+  )+
+  ggtitle("Estimated Dietary Proportions for Solitary Female Brown Bears")+
+  scale_fill_viridis(discrete=TRUE) + 
+  scale_color_viridis(discrete = TRUE)
+
+
+```
+
+
+
+```{r}
+P <- palette(viridis(100))
+Years <- BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1
+Ants1 <- as.data.frame(BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1[,1,1])
+Ants1$Year <- 1995
+names(Ants1)[1] <- paste("pAnts")
+Ants2 <- as.data.frame(BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1[,2,1])
+Ants2$Year <- 1996
+names(Ants2)[1] <- paste("pAnts")
+names(Ants1)[1] <- paste("pAnts")
+Ants3 <- as.data.frame(BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1[,3,1])
+Ants3$Year <- 1997
+names(Ants3)[1] <- paste("pAnts")
+Ants4 <- as.data.frame(BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1[,4,1])
+Ants4$Year <- 1998
+names(Ants4)[1] <- paste("pAnts")
+Ants5 <- as.data.frame(BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1[,5,1])
+Ants5$Year <- 1999
+names(Ants5)[1] <- paste("pAnts")
+
+
+
+ggplot(data = Ants1, aes(pAnts))+
+  geom_density(fill=P[1], alpha=0.2)+
+  geom_density(data = Ants2, aes(pAnts), fill=P[2],alpha=0.2)+
+  geom_density(data = Ants3, aes(pAnts), fill=P[3],alpha=0.2)+
+  geom_density(data = Ants4, aes(pAnts), fill=P[4],alpha=0.2)+
+  geom_density(data = Ants5, aes(pAnts), fill=P[5],alpha=0.2)+
+  theme_classic()+
+  scale_y_continuous(expand = c(0,0))+
+  scale_x_continuous(expand = c(0,0))+
+  ylab("Frequency")+
+  xlab("Annual estimated proportion ants in diet")
+
+
+```
+
+
+
+
+```{r}
+M <- palette(viridis(5, end = 1, begin = 0.8))
+
+Moose3 <- as.data.frame(BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1[,3,5])
+Moose3$Year <- 1997
+names(Moose3)[1] <- paste("pMoose")
+Moose4 <- as.data.frame(BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1[,4,5])
+Moose4$Year <- 1998
+names(Moose4)[1] <- paste("pMoose")
+Moose5 <- as.data.frame(BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1[,5,5])
+Moose5$Year <- 1999
+names(Moose5)[1] <- paste("pMoose")
+Moose6 <- as.data.frame(BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1[,6,5])
+Moose6$Year <- 2000
+names(Moose6)[1] <- paste("pMoose")
+Moose7 <- as.data.frame(BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1[,7,5])
+Moose7$Year <- 2001
+names(Moose7)[1] <- paste("pMoose")
+
+  
+```
+
+
+
+### Look at the variation in 15N by year and compare years of high to years of low
+
+```{r}
+
+ggplot(data = BearSI, aes(yr,d15N))+
+  geom_jitter(width = 0.07, size=2, alpha=0.6)
+  
+Moose3 <- as.data.frame(BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1[,3,5])
+Moose3$Year <- 1997
+names(Moose3)[1] <- paste("pMoose")
+Moose4 <- as.data.frame(BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1[,4,5])
+Moose4$Year <- 1998
+names(Moose4)[1] <- paste("pMoose")
+Moose5 <- as.data.frame(BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1[,5,5])
+Moose5$Year <- 1999
+names(Moose5)[1] <- paste("pMoose")
+Moose6 <- as.data.frame(BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1[,6,5])
+Moose6$Year <- 2000
+names(Moose6)[1] <- paste("pMoose")
+Moose7 <- as.data.frame(BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1[,7,5])
+Moose7$Year <- 2001
+names(Moose7)[1] <- paste("pMoose")
+
+Prop.Moose <- c(Moose3$pMoose,
+                Moose4$pMoose,
+                Moose5$pMoose,
+                Moose6$pMoose,
+                Moose7$pMoose)
+Years <- c(Moose3$Year,
+           Moose4$Year,
+           Moose5$Year,
+           Moose6$Year,
+           Moose7$Year)
+
+Moose.df <- data.frame(Prop.Moose,Years)
+Moose.df$fYR <- as.factor(Moose.df$Years)
+
+ggplot(data = Moose.df, aes(Prop.Moose))+
+  geom_density(aes(fill=fYR, group=fYR, color=fYR),
+               alpha=0.3, lwd=1.5)+
+  scale_fill_viridis(discrete = TRUE, end = 1, begin = 0.8)+
+  scale_color_viridis(discrete = TRUE, end = 1, begin = 0.8)+
+  theme_classic()+
+  scale_y_continuous(expand = c(0,0))+
+  scale_x_continuous(expand = c(0,0))+
+  ylab("Frequency")+
+  xlab("Annual estimated proportion moose in diet")+
+  labs(fill="Year", color="Year")
+##############################
+
+YearProp <- BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1
+
+# What is the probability that more moose was consumed in 1999 vs 1997
+
+tot <- length(BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1[,3,5])
+(Prob.99.97 <- sum(YearProp[,5,5]>YearProp[,3,5])/tot) #0.65
+(Prob.99.01 <- sum(YearProp[,5,5]>YearProp[,7,5])/tot)#0.76
+# There is a 65% probability that more moose was consumed in 1999 than 1997 and a 0.76% probability that more was consumed in 1999 than 2001. It might be worth looking at which repro classes consume the most moose and ants at look at the distribution of these within years of high d15N
+
+Prob.99.97 <- 
+  BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1[,3,5]-
+  BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac1[,5,5]
+hist(Prob.99.97,breaks=50,col="grey", main="Difference between Moose proportions, 99 - 97")
+abline(v=0,col="red",lty=2,lwd=3)
+
+#get a complete posterior probability for the difference between the diets of solitary females and females with cubs (i.e. is Fems with offspring - solitary females greater than 0?)
+
+p.Ants.wCubs.SolF <- BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac2[,3,1] - BearDiet.Annual.Repro$BUGSoutput$sims.list$p.fac2[,1,1]
+hist(p.Moose.wCubs.SolF,breaks=50,col="grey", main="Difference between Moose proportions, Females wCubs - Solitary Females")
+abline(v=0,col="red",lty=2,lwd=3)
+
+
+
+```

@@ -11,6 +11,8 @@ OK. I took the dry run with initial data exploration, TDF and prior calculations
 ```{r}
 rm(list = ls())
 
+setwd("~/Rprojects/Diet-sensitivty-to-TDFs-and-priors")
+
 library(MixSIAR)
 library(dplyr)
 
@@ -66,8 +68,6 @@ plot_data(
 
 calc_area(source=source,mix=mix.global,discr=disc)
 
-plot_prior(alpha.prior=c(0.07,0.5,0.14,0.3,0.4),source)
-
 
 # Write the JAGS model file
 model_filename <- "MixSIAR_Bear.global_model.txt"   # Name of the JAGS model file
@@ -81,8 +81,7 @@ write_JAGS_model(model_filename, resid_err, process_err, mix.global, source)
 
 ### Run prelim test model
 ```{r}
-
-
+start.time <- Sys.time()
 GlobalBear.MixSIAR.test <- run_model(
  run = "test",
  mix.global,
@@ -90,31 +89,32 @@ GlobalBear.MixSIAR.test <- run_model(
  disc,
  model_filename
  )
-
-
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+#3.5 minutes
 
 ```
 
 
 ```{r}
-?run_model
+start.time <- Sys.time()
 
-GlobalBear.MixSIAR.normal <- run_model(
- run = "normal",
+GlobalBear.MixSIAR.VeryLong <- run_model(
+ run = "very long",
  mix.global,
  source,
  disc,
  model_filename
  )
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+#
 
 
-```
+#Look at JAGS output
 
-
-Look at JAGS output
-
-```{r}
-?output_JAGS
 output_options <- list(summary_save = TRUE,
                        summary_name = "summary_statistics_bears.repro.annual",
                        sup_post = FALSE,
@@ -139,12 +139,6 @@ output_options <- list(summary_save = TRUE,
 
 output_JAGS(GlobalBear.MixSIAR.normal,mix.global, source, output_options)
 
-
-```
-
-
-
-```{r}
 save.image(file="bears.global")
 
 

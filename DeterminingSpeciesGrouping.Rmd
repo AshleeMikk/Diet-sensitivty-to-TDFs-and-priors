@@ -12,6 +12,8 @@ knitr::opts_chunk$set(echo = FALSE)
 ```
 # This analysis will look at the five food sources within the Swedish brown bear diet and determine if any diet sources need to be grouped based on isotopic and ecological similarities.
 
+# This is a line of text I added to see if Git is connected to R studio
+
 ```{r, include=FALSE}
 
 rm(list = ls())
@@ -23,6 +25,8 @@ library(dplyr)
 setwd("~/Rprojects/Diet-sensitivty-to-TDFs-and-priors")
 
 ```
+
+
 
 ```{r, include=FALSE}
 ##### Load in necessary data
